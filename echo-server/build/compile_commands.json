@@ -1,0 +1,7 @@
+[
+{
+  "directory": "/home/wqf/workspace/echo-server/build",
+  "command": "/usr/bin/c++ -DHAS_YAML_CPP -I/home/wqf/workspace/echo-server/include -isystem /usr/include/jsoncpp -std=gnu++20 -o CMakeFiles/echo-server.dir/src/main.cpp.o -c /home/wqf/workspace/echo-server/src/main.cpp",
+  "file": "/home/wqf/workspace/echo-server/src/main.cpp"
+}
+]

@@ -1,0 +1,21 @@
+# 1. 屏蔽本次发现的 AI 大文件和模型（核心）
+echo-ai/models/
+echo-ai/llama.cpp.zip
+echo-ai/llama.cpp/
+
+# 2. 屏蔽 C++ 编译产物与缓存
+build/
+cache/
+uploads/
+*.o
+*.a
+*.so
+drogon/build/
+
+# 3. 屏蔽前端依赖与打包产物
+node_modules/
+dist/
+
+# 4. 屏蔽 IDE 配置文件
+.vscode/
+.DS_Store

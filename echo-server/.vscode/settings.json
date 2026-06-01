@@ -1,0 +1,10 @@
+{
+  "C_Cpp.default.includePath": [
+    "${workspaceFolder}/include",
+    "/usr/include/jsoncpp",
+    "/usr/local/include",
+    "/usr/include"
+  ],
+  "C_Cpp.default.compilerPath": "/usr/bin/g++",
+  "C_Cpp.default.intelliSenseMode": "linux-gcc-x64"
+}

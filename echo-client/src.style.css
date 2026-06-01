@@ -1,0 +1,100 @@
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  background: #f3f4f6;
+  font-family: Arial, "Microsoft YaHei", sans-serif;
+  color: #111827;
+}
+
+.page {
+  max-width: 720px;
+  margin: 0 auto;
+  padding: 20px;
+}
+
+.top-bar {
+  background: white;
+  border-radius: 16px;
+  padding: 20px;
+  margin-bottom: 16px;
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.06);
+}
+
+.top-bar h1 {
+  margin: 0;
+  font-size: 28px;
+}
+
+.top-bar p {
+  margin: 8px 0 0;
+  color: #6b7280;
+}
+
+.status {
+  color: #6b7280;
+  padding: 16px;
+  text-align: center;
+}
+
+.post-list {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.post-card {
+  background: white;
+  border-radius: 16px;
+  padding: 16px;
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.06);
+}
+
+.post-header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.avatar {
+  width: 46px;
+  height: 46px;
+  border-radius: 50%;
+  object-fit: cover;
+  background: #e5e7eb;
+}
+
+.nickname {
+  font-weight: bold;
+}
+
+.meta {
+  margin-top: 4px;
+  font-size: 13px;
+  color: #6b7280;
+}
+
+.content {
+  margin-top: 14px;
+  line-height: 1.7;
+  white-space: pre-wrap;
+}
+
+.post-image {
+  width: 100%;
+  max-height: 420px;
+  object-fit: cover;
+  border-radius: 12px;
+  margin-top: 12px;
+  background: #e5e7eb;
+}
+
+.actions {
+  display: flex;
+  gap: 18px;
+  margin-top: 14px;
+  color: #4b5563;
+  font-size: 14px;
+}

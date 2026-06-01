@@ -1,0 +1,3 @@
+/home/wqf/workspace/echo-server/build/CMakeFiles/echo-server.dir
+/home/wqf/workspace/echo-server/build/CMakeFiles/edit_cache.dir
+/home/wqf/workspace/echo-server/build/CMakeFiles/rebuild_cache.dir
