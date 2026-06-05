@@ -1,177 +1,134 @@
-#!/bin/bash
+#!/usr/bin/env bash
+set -euo pipefail
 
-# ============================================
-# Moment - CUMT校园论坛 快速启动脚本
-# ============================================
+ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+BACKEND_DIR="$ROOT_DIR/echo-server"
+FRONTEND_DIR="$ROOT_DIR/echo-client"
+BACKEND_BUILD_DIR="$BACKEND_DIR/build"
+BACKEND_BIN="$BACKEND_BUILD_DIR/echo-server"
 
-set -e
+BACKEND_HOST="${BACKEND_HOST:-127.0.0.1}"
+BACKEND_PORT="${BACKEND_PORT:-8080}"
+FRONTEND_PORT="${FRONTEND_PORT:-5173}"
+START_AI="${START_AI:-0}"
+AI_HOST="${AI_HOST:-127.0.0.1}"
+AI_PORT="${AI_PORT:-18080}"
 
-echo "🎓 Moment - CUMT校园论坛"
-echo "========================"
-echo ""
+PIDS=()
 
-# 颜色定义
-RED='\033[0;31m'
-GREEN='\033[0;32m'
-YELLOW='\033[1;33m'
-BLUE='\033[0;34m'
-NC='\033[0m' # No Color
-
-# 检查依赖
-check_dependencies() {
-    echo -e "${BLUE}检查依赖...${NC}"
-    
-    if ! command -v node &> /dev/null; then
-        echo -e "${RED}❌ Node.js 未安装${NC}"
-        exit 1
-    fi
-    
-    if ! command -v cmake &> /dev/null; then
-        echo -e "${RED}❌ CMake 未安装${NC}"
-        exit 1
-    fi
-    
-    if ! command -v g++ &> /dev/null; then
-        echo -e "${RED}❌ G++ 编译器未安装${NC}"
-        exit 1
-    fi
-    
-    echo -e "${GREEN}✅ 依赖检查通过${NC}"
-    echo ""
+log() {
+  printf '\033[1;32m[Moment]\033[0m %s\n' "$1"
 }
 
-# 编译后端
-build_backend() {
-    echo -e "${BLUE}编译后端服务...${NC}"
-    cd echo-server
-    
-    if [ ! -d "build" ]; then
-        mkdir build
-    fi
-    
-    cd build
-    cmake .. -DCMAKE_BUILD_TYPE=Release > /dev/null 2>&1
-    make -j$(nproc) > /dev/null 2>&1
-    
-    if [ $? -eq 0 ]; then
-        echo -e "${GREEN}✅ 后端编译成功${NC}"
-    else
-        echo -e "${RED}❌ 后端编译失败${NC}"
-        exit 1
-    fi
-    
-    cd ../..
-    echo ""
+warn() {
+  printf '\033[1;33m[Warn]\033[0m %s\n' "$1"
 }
 
-# 启动后端
-start_backend() {
-    echo -e "${BLUE}启动后端服务...${NC}"
-    cd echo-server/build
-    ./echo_server &
-    BACKEND_PID=$!
-    cd ../..
-    
-    sleep 2
-    
-    if curl -s http://127.0.0.1:8080 > /dev/null 2>&1; then
-        echo -e "${GREEN}✅ 后端服务运行在 http://127.0.0.1:8080${NC}"
-    else
-        echo -e "${YELLOW}⚠️  后端服务可能启动失败，请检查日志${NC}"
-    fi
-    
-    echo ""
+err() {
+  printf '\033[1;31m[Error]\033[0m %s\n' "$1" >&2
 }
 
-# 启动AI服务（可选）
-start_ai_service() {
-    read -p "是否启动AI服务？(y/n): " choice
-    if [[ $choice == "y" || $choice == "Y" ]]; then
-        echo -e "${BLUE}启动AI服务...${NC}"
-        cd echo-server
-        bash scripts/start_ai.sh &
-        AI_PID=$!
-        cd ..
-        
-        sleep 5
-        
-        if curl -s http://127.0.0.1:18080 > /dev/null 2>&1; then
-            echo -e "${GREEN}✅ AI服务运行在 http://127.0.0.1:18080${NC}"
-        else
-            echo -e "${YELLOW}⚠️  AI服务可能启动失败${NC}"
-        fi
-        
-        echo ""
-    fi
-}
-
-# 启动前端
-start_frontend() {
-    echo -e "${BLUE}启动前端开发服务器...${NC}"
-    cd echo-client
-    
-    if [ ! -d "node_modules" ]; then
-        echo -e "${YELLOW}安装前端依赖...${NC}"
-        npm install
-    fi
-    
-    npm run dev &
-    FRONTEND_PID=$!
-    cd ..
-    
-    sleep 3
-    echo -e "${GREEN}✅ 前端服务运行在 http://localhost:5173${NC}"
-    echo ""
-}
-
-# 清理函数
 cleanup() {
-    echo ""
-    echo -e "${YELLOW}正在停止所有服务...${NC}"
-    kill $BACKEND_PID 2>/dev/null
-    kill $FRONTEND_PID 2>/dev/null
-    kill $AI_PID 2>/dev/null
-    echo -e "${GREEN}所有服务已停止${NC}"
-    exit 0
+  log "正在停止服务..."
+  for pid in "${PIDS[@]:-}"; do
+    if kill -0 "$pid" >/dev/null 2>&1; then
+      kill "$pid" >/dev/null 2>&1 || true
+    fi
+  done
+}
+trap cleanup EXIT INT TERM
+
+init_submodules() {
+  if [ -f "$ROOT_DIR/.gitmodules" ]; then
+    log "初始化 Git 子模块..."
+    git -C "$ROOT_DIR" submodule update --init --recursive
+  fi
 }
 
-# 注册清理函数
-trap cleanup SIGINT SIGTERM
+build_backend() {
+  log "编译后端..."
+  mkdir -p "$BACKEND_BUILD_DIR"
+  cmake -S "$BACKEND_DIR" -B "$BACKEND_BUILD_DIR" -DCMAKE_BUILD_TYPE=Release
+  cmake --build "$BACKEND_BUILD_DIR" -j
 
-# 主流程
+  if [ ! -x "$BACKEND_BIN" ]; then
+    err "未找到后端可执行文件：$BACKEND_BIN"
+    err "请确认 echo-server/CMakeLists.txt 中 add_executable 的目标名为 echo-server"
+    exit 1
+  fi
+}
+
+start_backend() {
+  log "启动后端：http://$BACKEND_HOST:$BACKEND_PORT"
+  (
+    cd "$BACKEND_BUILD_DIR"
+    "$BACKEND_BIN"
+  ) &
+  PIDS+=("$!")
+
+  sleep 1
+  if command -v curl >/dev/null 2>&1; then
+    if curl -fsS "http://$BACKEND_HOST:$BACKEND_PORT" >/dev/null 2>&1; then
+      log "后端健康检查通过"
+    else
+      warn "后端未通过健康检查，但进程已启动。请查看终端日志。"
+    fi
+  fi
+}
+
+install_frontend_deps() {
+  if [ ! -d "$FRONTEND_DIR/node_modules" ]; then
+    log "安装前端依赖..."
+    npm --prefix "$FRONTEND_DIR" install
+  fi
+}
+
+start_frontend() {
+  log "启动前端：http://localhost:$FRONTEND_PORT"
+  npm --prefix "$FRONTEND_DIR" run dev -- --host 0.0.0.0 --port "$FRONTEND_PORT" &
+  PIDS+=("$!")
+}
+
+start_ai_optional() {
+  if [ "$START_AI" != "1" ]; then
+    warn "AI 服务默认不启动。如需启动，请使用：START_AI=1 ./start.sh"
+    return
+  fi
+
+  local LLAMA_SERVER="$ROOT_DIR/echo-ai/llama.cpp/build/bin/llama-server"
+  local MODEL_PATH="$ROOT_DIR/echo-ai/models/qwen2.5-1.5b/qwen2.5-1.5b-instruct-q4_k_m.gguf"
+
+  if [ ! -x "$LLAMA_SERVER" ]; then
+    warn "未找到 llama-server：$LLAMA_SERVER"
+    warn "请先编译 echo-ai/llama.cpp"
+    return
+  fi
+
+  if [ ! -f "$MODEL_PATH" ]; then
+    warn "未找到模型文件：$MODEL_PATH"
+    return
+  fi
+
+  log "启动 AI 服务：http://$AI_HOST:$AI_PORT"
+  "$LLAMA_SERVER" \
+    -m "$MODEL_PATH" \
+    -c 2048 \
+    -t 4 \
+    --host "$AI_HOST" \
+    --port "$AI_PORT" &
+  PIDS+=("$!")
+}
+
 main() {
-    check_dependencies
-    build_backend
-    start_backend
-    start_ai_service
-    start_frontend
-    
-    echo -e "${GREEN}========================================${NC}"
-    echo -e "${GREEN}🎉 Moment 已成功启动！${NC}"
-    echo -e "${GREEN}========================================${NC}"
-    echo -e "${BLUE}前端: http://localhost:5173${NC}"
-    echo -e "${BLUE}后端: http://127.0.0.1:8080${NC}"
-    echo -e "${BLUE}AI:   http://127.0.0.1:18080 (如果已启动)${NC}"
-    echo -e "${GREEN}========================================${NC}"
-    echo -e "${YELLOW}按 Ctrl+C 停止所有服务${NC}"
-    echo ""
-    
-    # 等待用户中断
-    wait
+  init_submodules
+  build_backend
+  start_ai_optional
+  start_backend
+  install_frontend_deps
+  start_frontend
+
+  log "开发环境已启动。按 Ctrl+C 停止全部服务。"
+  wait
 }
 
-# 显示帮助
-if [[ "$1" == "-h" || "$1" == "--help" ]]; then
-    echo "用法: ./start.sh [选项]"
-    echo ""
-    echo "选项:"
-    echo "  -h, --help     显示帮助信息"
-    echo ""
-    echo "说明:"
-    echo "  此脚本会自动编译并启动Moment的所有服务"
-    echo "  包括后端API、前端开发服务器和可选的AI服务"
-    exit 0
-fi
-
-# 执行主流程
-main
+main "$@"

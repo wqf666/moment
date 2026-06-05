@@ -3,20 +3,22 @@
 project(echo-server)
 
 set(CMAKE_CXX_STANDARD 20)
-set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
+set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
 find_package(PkgConfig REQUIRED)
 find_package(Drogon CONFIG REQUIRED)
-
 pkg_check_modules(JSONCPP REQUIRED jsoncpp)
 
-add_executable(echo-server
-    src/main.cpp
+file(GLOB_RECURSE SERVER_SOURCES
+    src/*.cpp
 )
+
+add_executable(echo-server ${SERVER_SOURCES})
 
 target_include_directories(echo-server PRIVATE
     include
+    src
     ${JSONCPP_INCLUDE_DIRS}
 )
 

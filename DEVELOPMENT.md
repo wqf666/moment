@@ -25,7 +25,7 @@
                                                   │
                                            ┌──────▼──────┐
                                            │   Database  │
-                                           │ (PostgreSQL)│
+                                           │   (MySQL)   │
                                            └─────────────┘
                                                   │
                                            ┌──────▼──────┐
@@ -66,7 +66,7 @@
 |------|------|------|
 | C++ | 17 | 编程语言 |
 | Drogon | 最新 | Web框架 |
-| PostgreSQL | 12+ | 关系数据库 |
+| MySQL | 8.0+ | 关系数据库（统一使用） |
 | Redis | 6+ | 缓存（可选） |
 | CMake | 3.14+ | 构建系统 |
 
@@ -88,6 +88,15 @@
 
 ## 数据库设计
 
+### 数据库初始化
+
+所有表结构定义已统一整理到 [`echo-server/sql/init.sql`](echo-server/sql/init.sql)
+
+执行初始化：
+```bash
+mysql -u echo_user -p < echo-server/sql/init.sql
+```
+
 ### ER图
 
 ```
@@ -97,103 +106,43 @@
 │ id       │       │ id       │       │ id       │
 │ username │       │ user_id  │       │ post_id  │
 │ nickname │       │ content  │       │ user_id  │
-│ email    │       │ media    │       │ content  │
-│ password │       │ created  │       │ created  │
-│ avatar   │       └──────────┘       └──────────┘
-│ bio      │            │                    │
-│ cover    │            │1                  *│
-└──────────┘            └────────────────────┘
+│ password │       │ image_url│       │ content  │
+│ avatar   │       │ created  │       │ created  │
+│ bio      │       └──────────┘       └──────────┘
+│ cover    │            │                    │
+└──────────┘            │                    │
+                        │1                  *│
+                        └────────────────────┘
                               │
-                        ┌─────▼─────┐
-                        │ follows   │
-                        ├───────────┤
-                        │ follower  │
-                        │ following │
-                        └───────────┘
+                        ┌─────▼─────┐     ┌──────────┐
+                        │user_follows│    │post_likes│
+                        ├───────────┤    ├──────────┤
+                        │ follower  │    │ post_id  │
+                        │ following │    │ user_id  │
+                        └───────────┘    └──────────┘
+                        
+                        ┌──────────────────┐
+                        │ai_conversations  │1     *┌──────────┐
+                        ├──────────────────┤───────┤ai_messages│
+                        │ user_id          │       ├──────────┤
+                        │ title            │       │ role     │
+                        │ created/updated  │       │ content  │
+                        └──────────────────┘       └──────────┘
 ```
 
-### 表结构
+### 表结构详细说明
 
-#### users 表
-```sql
-CREATE TABLE users (
-    id SERIAL PRIMARY KEY,
-    username VARCHAR(50) UNIQUE NOT NULL,
-    nickname VARCHAR(100),
-    email VARCHAR(255) UNIQUE,
-    password_hash VARCHAR(255) NOT NULL,
-    avatar_url TEXT,
-    cover_image_url TEXT,
-    bio TEXT,
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-);
-```
+详见 [`echo-server/sql/init.sql`](echo-server/sql/init.sql)，包含以下7个表：
 
-#### posts 表
-```sql
-CREATE TABLE posts (
-    id SERIAL PRIMARY KEY,
-    user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
-    content TEXT NOT NULL,
-    media_url TEXT,
-    media_type VARCHAR(20), -- 'image' or 'video'
-    like_count INTEGER DEFAULT 0,
-    comment_count INTEGER DEFAULT 0,
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-);
+1. **users** - 用户表（主键、用户名、密码哈希、个人资料）
+2. **posts** - 帖子表（内容、图片、点赞数、评论数）
+3. **comments** - 评论表（评论内容、关联帖子和用户）
+4. **user_follows** - 关注关系表（多对多关系）
+5. **post_likes** - 点赞表（记录谁点了哪个帖子的赞）
+6. **ai_conversations** - AI对话表（会话管理）
+7. **ai_messages** - AI消息表（对话历史记录）
 
-CREATE INDEX idx_posts_user_id ON posts(user_id);
-CREATE INDEX idx_posts_created ON posts(created_at DESC);
-```
-
-#### comments 表
-```sql
-CREATE TABLE comments (
-    id SERIAL PRIMARY KEY,
-    post_id INTEGER REFERENCES posts(id) ON DELETE CASCADE,
-    user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
-    content TEXT NOT NULL,
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-);
-
-CREATE INDEX idx_comments_post_id ON comments(post_id);
-```
-
-#### follows 表
-```sql
-CREATE TABLE follows (
-    follower_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
-    following_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    PRIMARY KEY (follower_id, following_id)
-);
-```
-
-#### ai_conversations 表
-```sql
-CREATE TABLE ai_conversations (
-    id SERIAL PRIMARY KEY,
-    user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
-    title VARCHAR(255),
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-);
-```
-
-#### ai_messages 表
-```sql
-CREATE TABLE ai_messages (
-    id SERIAL PRIMARY KEY,
-    conversation_id INTEGER REFERENCES ai_conversations(id) ON DELETE CASCADE,
-    role VARCHAR(10) NOT NULL, -- 'user' or 'assistant'
-    content TEXT NOT NULL,
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-);
-
-CREATE INDEX idx_ai_messages_conversation ON ai_messages(conversation_id);
-```
+**注意**：项目统一使用MySQL，不再支持PostgreSQL。如需迁移，请参考init.sql中的MySQL语法。
 
 ---
 
@@ -203,7 +152,7 @@ CREATE INDEX idx_ai_messages_conversation ON ai_messages(conversation_id);
 
 使用Bearer Token进行身份验证：
 
-```http
+```
 Authorization: Bearer <token>
 ```
 
@@ -424,7 +373,7 @@ async function apiRequest(endpoint, options = {}) {
 
 #### 命名约定
 
-```css
+```
 /* 组件类名 */
 .post-card { }
 .post-card__title { }  /* BEM元素 */
@@ -689,7 +638,7 @@ sudo systemctl start ai-server
 
 #### 4. 数据库配置
 
-```sql
+```
 -- 创建数据库和用户
 CREATE DATABASE moment_db;
 CREATE USER moment_user WITH PASSWORD 'secure_password';
@@ -751,7 +700,7 @@ JWT_SECRET=your-secret-key-here
 
 ### 日志级别
 
-```cpp
+```
 LOG_DEBUG << "调试信息";
 LOG_INFO << "一般信息";
 LOG_WARN << "警告";
@@ -760,7 +709,7 @@ LOG_ERROR << "错误";
 
 ### 日志文件
 
-```bash
+```
 # 配置日志输出到文件
 tail -f /var/log/moment/server.log
 ```

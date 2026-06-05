@@ -1,10 +1,10 @@
-# 🎓 Moment - CUMT校园论坛
+# 🎓 Moment - 校园论坛
 
 <div align="center">
 
 ![Moment Logo](https://img.shields.io/badge/Moment-CUMT-667eea?style=for-the-badge&logo=data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAxMDAgMTAwIj48dGV4dCB5PSIuOWVtIiBmb250LXNpemU9IjkwIj7wn46TPC90ZXh0Pjwvc3ZnPg==)
 
-**记录矿大美好时光 · 中国矿业大学专属社交平台**
+**记录美好时光 · 大学专属社交平台**
 
 [![License](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 [![Frontend](https://img.shields.io/badge/frontend-Vanilla%20JS-yellow)](echo-client/)
@@ -17,7 +17,7 @@
 
 ## 📖 项目简介
 
-**Moment** 是专为中国矿业大学（CUMT）学生打造的校园社交平台，集动态分享、社交互动、AI助手于一体，帮助同学们记录和分享在矿大的美好校园生活。
+**Moment** 是专为大学生打造的校园社交平台，集动态分享、社交互动、AI助手于一体，帮助同学们记录和分享在矿大的美好校园生活。
 
 ### ✨ 核心功能
 
@@ -135,7 +135,7 @@ moment-cumt/
 ### 后端
 - **语言**: C++17
 - **Web框架**: [Drogon](https://github.com/drogonframework/drogon)
-- **数据库**: PostgreSQL / MySQL
+- **数据库**: MySQL 8.0+ (统一使用MySQL)
 - **缓存**: Redis (可选)
 - **构建系统**: CMake
 
@@ -144,23 +144,7 @@ moment-cumt/
 - **模型**: Qwen2.5-1.5B-Instruct (量化版)
 - **API**: OpenAI兼容接口
 
----
 
-## 🌈 主题设计
-
-### 品牌色彩
-- **主色调**: 紫色渐变系
-  - 起始色: `#667eea` (淡紫蓝)
-  - 中间色: `#764ba2` (深紫)
-  - 结束色: `#f093fb` (粉紫)
-
-### 设计理念
-- 🎓 **学术氛围**: 学位帽标识体现大学属性
-- ⚡ **青春活力**: 紫色渐变象征年轻人的朝气
-- 🎯 **现代简约**: 毛玻璃效果和圆角设计
-- 💝 **亲切友好**: Emoji和温暖文案提升体验
-
----
 
 ## 📸 界面预览
 
@@ -169,8 +153,6 @@ moment-cumt/
 - **校园广场** - 瀑布流展示最新动态
 - **个人空间** - 个性化资料展示
 - **AI助手** - 智能对话界面
-
-*(截图待添加)*
 
 ---
 
@@ -196,9 +178,15 @@ void MyController::handleNewFeature(const HttpRequestPtr& req,
 }
 ```
 
-#### 数据库迁移
+#### 数据库初始化
 
-SQL脚本放在 `echo-server/docs/` 目录
+```
+# 执行统一的数据库初始化脚本
+cd echo-server
+mysql -u echo_user -p < sql/init.sql
+```
+
+SQL脚本统一放在 `echo-server/sql/` 目录，使用MySQL语法。
 
 ### 前端开发
 
@@ -234,39 +222,76 @@ bash scripts/test_ai.sh
 
 ## 📝 API文档
 
-完整的API文档请查看: [echo-server/docs/API_DOC.md](echo-server/docs/API_DOC.md)
+API 文档位置：
 
-### 主要接口
+```
+echo-server/API_DOC.md
+```
 
-| 端点 | 方法 | 描述 |
-|------|------|------|
-| `/api/auth/login` | POST | 用户登录 |
-| `/api/auth/register` | POST | 用户注册 |
-| `/api/posts` | GET | 获取帖子列表 |
-| `/api/posts` | POST | 创建帖子 |
-| `/api/comments` | POST | 发表评论 |
-| `/api/users/:id/follow` | POST | 关注用户 |
-| `/api/ai/chat` | POST | AI聊天 |
-| `/api/ai/conversations` | GET | 获取对话列表 |
+主要接口包括：
+
+| 模块 | 接口 |
+|---|---|
+| 认证 | `/api/auth/register`, `/api/auth/login` |
+| 帖子 | `/api/posts`, `/api/posts/mine`, `/api/posts/update` |
+| 评论 | `/api/comments` |
+| 关注 | `/api/follows/toggle`, `/api/follows/followers`, `/api/follows/following` |
+| 信息流 | `/api/feed/following` |
+| 用户 | `/api/users/profile/update`, `/api/users/home`, `/api/users/media` |
+| AI | `/api/ai/chat`, `/api/ai/conversations`, `/api/ai/messages` |
+
+完整说明见：[`echo-server/API_DOC.md`](echo-server/API_DOC.md)
 
 ---
 
-## 🤝 贡献指南
+## 常见问题
 
-我们欢迎所有形式的贡献！
+### 1. `./echo_server: No such file or directory`
 
-1. Fork 本仓库
-2. 创建特性分支 (`git checkout -b feature/AmazingFeature`)
-3. 提交更改 (`git commit -m 'Add some AmazingFeature'`)
-4. 推送到分支 (`git push origin feature/AmazingFeature`)
-5. 开启 Pull Request
+请检查 CMake 生成的可执行文件名。建议统一使用：
 
-### 贡献规范
+```
+./echo-server
+```
 
-- 遵循现有的代码风格
-- 添加必要的注释和文档
-- 确保测试通过
-- 更新README（如需要）
+或者将 CMake 中的目标名改成 `echo_server`。
+
+### 2. API 文档路径找不到
+
+当前推荐路径为：
+
+```
+echo-server/API_DOC.md
+```
+
+不要再写成：
+
+```
+echo-server/docs/API_DOC.md
+```
+
+除非你真的把文件移动到了 `docs/` 目录下。
+
+### 3. 数据库连接失败
+
+确认MySQL服务已启动，并检查连接配置：
+- Host: `127.0.0.1`
+- Port: `3306`
+- Database: `echo_app`
+- User: `echo_user`
+- Password: `123456`
+
+可以通过以下命令测试连接：
+```bash
+mysql -h 127.0.0.1 -P 3306 -u echo_user -p echo_app
+```
+
+---
+
+## License
+
+MIT License
+
 
 ---
 
@@ -276,11 +301,7 @@ bash scripts/test_ai.sh
 
 ---
 
-## 👥 团队
 
-**Moment Team** - 中国矿业大学学生开发团队
-
----
 
 ## 🙏 致谢
 
@@ -291,17 +312,8 @@ bash scripts/test_ai.sh
 
 ---
 
-## 📞 联系方式
-
-- 📧 Email: your-email@cumt.edu.cn
-- 💬 QQ群: [加入讨论](#)
-- 🐛 Issues: [GitHub Issues](https://github.com/your-username/moment-cumt/issues)
-
----
 
 <div align="center">
-
-**Made with ❤️ by CUMT Students**
 
 ⭐ 如果这个项目对你有帮助，请给我们一个Star！
 
