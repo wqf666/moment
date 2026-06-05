@@ -1645,7 +1645,7 @@ int main() {
 
             int64_t postId = 0;
             if (!parseJsonInt64(*json, "post_id", postId)) {
-                callback(makeJsonResponse(9002, "Invalid post_id"));
+                callback(makeJsonResponse(11802, "Invalid post_id: post_id must be a positive integer"));
                 return;
             }
 

@@ -446,6 +446,9 @@ function renderPostImage(post) {
 function renderPostCard(post) {
   const userId = post.user_id || ''
   const postId = post.post_id || post.id || ''
+  
+  // 确保postId是有效的数字
+  const isValidPostId = postId && postId !== '' && postId !== 'undefined' && postId !== 'null'
 
   return `
     <article class="post-card" data-post-id="${escapeHtml(postId)}">
@@ -465,8 +468,8 @@ function renderPostCard(post) {
           ${post.liked ? '❤️' : '🤍'} <span>${escapeHtml(post.like_count || 0)}</span>
         </button>
         <button class="mini-btn detail-btn" data-post-id="${escapeHtml(postId)}">💬 ${escapeHtml(post.comment_count || 0)} 评论</button>
-        ${post.is_owner ? `<button class="mini-btn edit-btn" data-post-id="${escapeHtml(postId)}">编辑</button>` : ''}
-        ${post.is_owner ? `<button class="mini-btn danger delete-btn" data-post-id="${escapeHtml(postId)}">删除</button>` : ''}
+        ${post.is_owner && isValidPostId ? `<button class="mini-btn edit-btn" data-post-id="${escapeHtml(postId)}">编辑</button>` : ''}
+        ${post.is_owner && isValidPostId ? `<button class="mini-btn danger delete-btn" data-post-id="${escapeHtml(postId)}">删除</button>` : ''}
         ${post.is_owner ? '<span class="tag mine-tag">我的帖子</span>' : '<span class="tag">别人的帖子</span>'}
       </div>
     </article>
@@ -615,11 +618,23 @@ async function toggleLike(postId, button) {
 }
 
 async function deletePost(postId) {
+  // 验证postId是否有效
+  if (!postId || postId === '' || postId === 'undefined' || postId === 'null') {
+    alert('帖子ID无效，请刷新页面后重试')
+    return
+  }
+  
+  const numericPostId = Number(postId)
+  if (!numericPostId || numericPostId <= 0 || !Number.isInteger(numericPostId)) {
+    alert('帖子ID格式错误，请刷新页面后重试')
+    return
+  }
+  
   if (!confirm('确定删除这条帖子吗？')) return
 
   const result = await request('/api/posts/delete', {
     method: 'POST',
-    body: JSON.stringify({ post_id: Number(postId) })
+    body: JSON.stringify({ post_id: numericPostId })
   })
 
   if (result.code !== 0) {
@@ -633,6 +648,18 @@ async function deletePost(postId) {
 }
 
 async function editPost(postId) {
+  // 验证postId是否有效
+  if (!postId || postId === '' || postId === 'undefined' || postId === 'null') {
+    alert('帖子ID无效，请刷新页面后重试')
+    return
+  }
+  
+  const numericPostId = Number(postId)
+  if (!numericPostId || numericPostId <= 0 || !Number.isInteger(numericPostId)) {
+    alert('帖子ID格式错误，请刷新页面后重试')
+    return
+  }
+  
   const post = state.posts.find((item) => String(item.post_id || item.id) === String(postId)) || {}
   const oldContent = post.content || ''
   const oldImageUrl = post.image_url || ''
@@ -645,7 +672,7 @@ async function editPost(postId) {
 
   const result = await request('/api/posts/update', {
     method: 'POST',
-    body: JSON.stringify({ post_id: Number(postId), content: newContent, image_url: newImageUrl })
+    body: JSON.stringify({ post_id: numericPostId, content: newContent, image_url: newImageUrl })
   })
 
   if (result.code !== 0) {
