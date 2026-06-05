@@ -445,7 +445,9 @@ function renderPostImage(post) {
 
 function renderPostCard(post) {
   const userId = post.user_id || ''
-  const postId = post.post_id || post.id || ''
+  // 兼容新旧字段名：post_id -> id, image_url -> media_url
+  const postId = post.id || post.post_id || ''
+  const imageUrl = post.media_url || post.image_url || ''
   
   // 确保postId是有效的数字
   const isValidPostId = postId && postId !== '' && postId !== 'undefined' && postId !== 'null'
@@ -461,7 +463,7 @@ function renderPostCard(post) {
       </div>
 
       <div class="post-content">${escapeHtml(post.content || '')}</div>
-      ${renderPostImage(post)}
+      ${renderPostImage({...post, image_url: imageUrl})}
 
       <div class="actions">
         <button class="mini-btn like-btn" data-post-id="${escapeHtml(postId)}">
@@ -581,9 +583,10 @@ async function publishPost() {
     return
   }
 
+  // 使用新字段名 media_url
   const result = await request('/api/posts/create', {
     method: 'POST',
-    body: JSON.stringify({ content, image_url: state.uploadedImageUrl })
+    body: JSON.stringify({ content, media_url: state.uploadedImageUrl })
   })
 
   if (result.code !== 0) {
@@ -632,9 +635,9 @@ async function deletePost(postId) {
   
   if (!confirm('确定删除这条帖子吗？')) return
 
-  const result = await request('/api/posts/delete', {
-    method: 'POST',
-    body: JSON.stringify({ post_id: numericPostId })
+  // 使用RESTful DELETE方法，post_id在URL路径中
+  const result = await request(`/api/posts/${numericPostId}`, {
+    method: 'DELETE'
   })
 
   if (result.code !== 0) {
@@ -662,7 +665,7 @@ async function editPost(postId) {
   
   const post = state.posts.find((item) => String(item.post_id || item.id) === String(postId)) || {}
   const oldContent = post.content || ''
-  const oldImageUrl = post.image_url || ''
+  const oldImageUrl = post.image_url || post.media_url || ''
 
   const newContent = prompt('请输入新的帖子内容：', oldContent)
   if (newContent === null) return
@@ -670,9 +673,10 @@ async function editPost(postId) {
   const newImageUrl = prompt('请输入新的图片 URL，可以留空：', oldImageUrl)
   if (newImageUrl === null) return
 
-  const result = await request('/api/posts/update', {
-    method: 'POST',
-    body: JSON.stringify({ post_id: numericPostId, content: newContent, image_url: newImageUrl })
+  // 使用RESTful PUT方法，post_id在URL路径中
+  const result = await request(`/api/posts/${numericPostId}`, {
+    method: 'PUT',
+    body: JSON.stringify({ content: newContent, media_url: newImageUrl })
   })
 
   if (result.code !== 0) {
