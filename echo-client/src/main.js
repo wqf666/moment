@@ -30,8 +30,9 @@ app.innerHTML = `
   <div class="app-shell">
     <header class="top-bar">
       <div>
-        <h1>Echo 社区</h1>
+        <h1>🎓 Moment</h1>
         <p id="current-user-text">未登录</p>
+        <p class="site-subtitle">CUMT校园论坛 · 记录矿大美好时光</p>
       </div>
       <div class="top-actions">
         <button id="dev-login-open-btn" class="ghost-btn">测试登录</button>
@@ -47,8 +48,8 @@ app.innerHTML = `
         </div>
 
         <div id="login-box">
-          <h2>账号登录</h2>
-          <p class="muted">正式模式：使用用户名和密码登录。</p>
+          <h2>👋 欢迎回到Moment</h2>
+          <p class="muted">使用你的矿大账号登录，开启校园生活新篇章</p>
 
           <div class="form-row">
             <label>用户名</label>
@@ -65,22 +66,22 @@ app.innerHTML = `
         </div>
 
         <div id="register-box" style="display:none;">
-          <h2>注册账号</h2>
-          <p class="muted">注册成功后会自动尝试登录。</p>
+          <h2>🎉 加入Moment大家庭</h2>
+          <p class="muted">注册矿大专属账号，与同学们一起分享校园生活</p>
 
           <div class="form-row">
             <label>用户名</label>
-            <input id="register-username" class="input" placeholder="请输入用户名" autocomplete="username" />
+            <input id="register-username" class="input" placeholder="建议使用学号或英文名" autocomplete="username" />
           </div>
 
           <div class="form-row">
             <label>昵称</label>
-            <input id="register-nickname" class="input" placeholder="可以不填" />
+            <input id="register-nickname" class="input" placeholder="展示给其他同学的称呼" />
           </div>
 
           <div class="form-row">
             <label>密码</label>
-            <input id="register-password" class="input" type="password" placeholder="至少 6 位更好" autocomplete="new-password" />
+            <input id="register-password" class="input" type="password" placeholder="至少 6 位，建议包含字母和数字" autocomplete="new-password" />
           </div>
 
           <button id="register-btn" class="primary-btn big-btn">注册</button>
@@ -89,29 +90,29 @@ app.innerHTML = `
       </div>
 
       <div id="dev-login-box" class="panel side-panel">
-        <h2>开发测试登录</h2>
-        <p class="muted">如果后端还没有正式登录接口，可以继续使用 demo_token。</p>
+        <h2>🔧 开发测试登录</h2>
+        <p class="muted">快速体验Moment功能，无需注册</p>
         <div class="form-row">
           <label>用户 ID</label>
           <input id="dev-user-id" class="input" value="1" placeholder="例如 1 或 2" />
         </div>
-        <button id="dev-login-btn" class="ghost-btn big-btn">用 demo_token 登录</button>
+        <button id="dev-login-btn" class="ghost-btn big-btn">快速登录</button>
         <div class="hint-box">
+          <p>💡 提示：输入不同的ID可以切换不同用户</p>
           <p>1 -> demo_token_1</p>
           <p>2 -> demo_token_2</p>
-          <p>这个入口方便你继续开发前端。</p>
         </div>
       </div>
     </section>
 
     <section id="main-view" style="display:none;">
       <nav class="tabs">
-        <button class="tab-btn" data-tab="latest">首页</button>
-        <button class="tab-btn" data-tab="following">关注流</button>
-        <button class="tab-btn" data-tab="create">发帖</button>
-        <button class="tab-btn" data-tab="mine">我的主页</button>
-        <button class="tab-btn" data-tab="profile">编辑资料</button>
-        <button class="tab-btn" data-tab="ai">AI助手</button>
+        <button class="tab-btn" data-tab="latest">🏠 校园广场</button>
+        <button class="tab-btn" data-tab="following">💫 关注动态</button>
+        <button class="tab-btn" data-tab="create">✍️ 发布动态</button>
+        <button class="tab-btn" data-tab="mine">👤 我的空间</button>
+        <button class="tab-btn" data-tab="profile">⚙️ 个人设置</button>
+        <button class="tab-btn" data-tab="ai">🤖 AI助手</button>
       </nav>
 
       <div id="status" class="status"></div>
@@ -472,10 +473,10 @@ function renderPostCard(post) {
   `
 }
 
-function renderPostList(posts, emptyText = '暂无帖子') {
+function renderPostList(posts, emptyText = '🌟 校园广场还没有动态，快来发布第一条吧！') {
   state.posts = posts || []
   if (!posts || posts.length === 0) {
-    contentEl.innerHTML = `<div class="empty">${escapeHtml(emptyText)}</div>`
+    contentEl.innerHTML = `<div class="empty campus-empty-hint">${escapeHtml(emptyText)}</div>`
     return
   }
   contentEl.innerHTML = `<div class="post-list">${posts.map(renderPostCard).join('')}</div>`
@@ -512,11 +513,13 @@ async function loadFollowingFeed() {
 function renderCreatePost() {
   state.uploadedImageUrl = ''
   contentEl.innerHTML = `
-    <section class="panel">
-      <h2>发布新帖子</h2>
+    <section class="panel create-post-panel">
+      <h2>✍️ 发布校园动态</h2>
+      <p class="post-hint">分享你在矿大的学习、生活、活动点滴 🎓</p>
+      
       <div class="form-row">
         <label>内容</label>
-        <textarea id="create-content" class="textarea" placeholder="写点什么..." rows="5"></textarea>
+        <textarea id="create-content" class="textarea" placeholder="今天矿大发生了什么有趣的事？或者分享一下你的学习笔记..." rows="5"></textarea>
       </div>
 
       <div class="form-row">
@@ -527,7 +530,7 @@ function renderCreatePost() {
       </div>
 
       <div id="create-preview"></div>
-      <button id="publish-btn" class="primary-btn big-btn">发布帖子</button>
+      <button id="publish-btn" class="primary-btn big-btn">发布动态</button>
     </section>
   `
 }
@@ -688,7 +691,7 @@ async function showPostDetail(postId) {
 }
 
 function renderComments(comments) {
-  if (!comments || comments.length === 0) return '<div class="empty small-empty">暂无评论</div>'
+  if (!comments || comments.length === 0) return '<div class="empty small-empty">💬 还没有评论，快来抢沙发！</div>'
   return `
     <div class="comment-list">
       ${comments.map((comment) => `
@@ -780,8 +783,8 @@ async function loadUserHome(userId) {
       </div>
     </section>
 
-    <h2 class="section-title">${isMe ? '我的帖子' : 'TA 的帖子'}</h2>
-    <div class="post-list">${posts.length ? posts.map(renderPostCard).join('') : '<div class="empty">还没有发过帖子</div>'}</div>
+    <h2 class="section-title">${isMe ? '📝 我的帖子' : '📝 TA 的帖子'}</h2>
+    <div class="post-list">${posts.length ? posts.map(renderPostCard).join('') : '<div class="empty campus-empty-hint">还没有发过帖子，去"发布动态"分享校园生活吧！</div>'}</div>
   `
 }
 
@@ -821,7 +824,7 @@ async function showUserList(type, userId) {
 
   modalContent.innerHTML = `
     <h2>${title}</h2>
-    ${list.length ? `<div class="user-list">${list.map(renderUserListItem).join('')}</div>` : '<div class="empty">暂无用户</div>'}
+    ${list.length ? `<div class="user-list">${list.map(renderUserListItem).join('')}</div>` : '<div class="empty campus-empty-hint">还没有同学关注，快去互动吧！</div>'}
   `
 }
 
@@ -842,16 +845,18 @@ function renderUserListItem(user) {
 function renderProfileEditor() {
   const user = state.currentUser || {}
   contentEl.innerHTML = `
-    <section class="panel">
-      <h2>编辑资料</h2>
+    <section class="panel profile-editor-panel">
+      <h2>⚙️ 编辑个人资料</h2>
+      <p class="profile-hint">完善你的矿大身份，让更多同学认识你 🎓</p>
+      
       <div class="form-row">
         <label>昵称</label>
-        <input id="profile-nickname" class="input" value="${escapeHtml(user.nickname || '')}" placeholder="例如 EchoUser" />
+        <input id="profile-nickname" class="input" value="${escapeHtml(user.nickname || '')}" placeholder="例如：矿大小明" />
       </div>
 
       <div class="form-row">
         <label>简介</label>
-        <textarea id="profile-bio" class="textarea" rows="3" placeholder="写一句简介">${escapeHtml(user.bio || '')}</textarea>
+        <textarea id="profile-bio" class="textarea" rows="3" placeholder="介绍一下自己，比如专业、年级、兴趣爱好...">${escapeHtml(user.bio || '')}</textarea>
       </div>
 
       <div class="form-row">
@@ -931,8 +936,8 @@ function renderAiChat() {
     <section class="ai-layout">
       <aside class="ai-sidebar">
         <div class="ai-sidebar-header">
-          <h2>AI 会话</h2>
-          <button id="new-ai-chat-btn" class="ghost-btn">新会话</button>
+          <h2>💬 AI 会话</h2>
+          <button id="new-ai-chat-btn" class="ghost-btn">✨ 新会话</button>
         </div>
 
         <div class="ai-conversation-list">
@@ -945,7 +950,7 @@ function renderAiChat() {
                   <span>${escapeHtml(item.updated_at || '')}</span>
                 </button>
               `).join('')
-              : '<div class="empty small-empty">暂无会话</div>'
+              : '<div class="empty small-empty">暂无会话，点击"新会话"开始聊天</div>'
           }
         </div>
       </aside>
@@ -955,13 +960,13 @@ function renderAiChat() {
           ${
             state.aiMessages.length
               ? state.aiMessages.map(renderAiMessage).join('')
-              : '<div class="empty">开始和 AI 助手聊天吧</div>'
+              : '<div class="ai-welcome"><div class="ai-welcome-icon">🎓</div><h3>你好！我是Moment AI助手</h3><p>我可以帮你解答矿大相关问题、提供学习建议、协助创作内容等。<br/>比如：图书馆开放时间、食堂推荐、课程攻略等。</p></div>'
           }
         </div>
 
         <div class="ai-input-bar">
-          <textarea id="ai-input" class="textarea" rows="3" placeholder="输入你想问 AI 的内容..."></textarea>
-          <button id="send-ai-message-btn" class="primary-btn">发送</button>
+          <textarea id="ai-input" class="textarea" rows="3" placeholder="问我关于矿大的任何问题..."></textarea>
+          <button id="send-ai-message-btn" class="primary-btn">发送 ➤</button>
         </div>
       </section>
     </section>
@@ -972,21 +977,54 @@ function renderAiChat() {
 
 function renderAiMessage(message) {
   const role = message.role === 'assistant' ? 'assistant' : 'user'
-  const name = role === 'assistant' ? 'AI助手' : '我'
+  const name = role === 'assistant' ? '🤖 AI助手' : '👤 我'
+  const time = message.created_at ? formatTime(message.created_at) : ''
 
   return `
     <div class="ai-message ${role}">
-      <div class="ai-message-role">${name}</div>
+      <div class="ai-message-header">
+        <div class="ai-message-role">${name}</div>
+        ${time ? `<div class="ai-message-time">${time}</div>` : ''}
+      </div>
       <div class="ai-message-content">${escapeHtml(message.content || '')}</div>
     </div>
   `
+}
+
+function formatTime(dateString) {
+  if (!dateString) return ''
+  try {
+    const date = new Date(dateString.replace(' ', 'T'))
+    const now = new Date()
+    const diff = now - date
+    
+    // 小于1分钟
+    if (diff < 60000) {
+      return '刚刚'
+    }
+    // 小于1小时
+    if (diff < 3600000) {
+      return `${Math.floor(diff / 60000)}分钟前`
+    }
+    // 小于24小时
+    if (diff < 86400000) {
+      return `${Math.floor(diff / 3600000)}小时前`
+    }
+    // 其他情况显示日期时间
+    const month = String(date.getMonth() + 1).padStart(2, '0')
+    const day = String(date.getDate()).padStart(2, '0')
+    const hours = String(date.getHours()).padStart(2, '0')
+    const minutes = String(date.getMinutes()).padStart(2, '0')
+    return `${month}-${day} ${hours}:${minutes}`
+  } catch {
+    return dateString
+  }
 }
 
 function scrollAiToBottom() {
   const box = $('#ai-message-list')
   if (box) box.scrollTop = box.scrollHeight
 }
-
 
 async function sendAiMessageStream() {
   const input = $('#ai-input')
@@ -996,55 +1034,68 @@ async function sendAiMessageStream() {
 
   input.value = ''
   btn.disabled = true
-  btn.textContent = '发送中...'
+  btn.textContent = '⏳ 思考中...'
 
   state.aiMessages.push({ role: 'user', content: message })
   renderAiChat()
+  scrollAiToBottom()
 
-  const response = await fetch('/api/ai/chat/stream', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${state.token}` },
-    body: JSON.stringify({ conversation_id: state.aiConversationId || 0, message })
-  })
+  try {
+    const response = await fetch('/api/ai/chat/stream', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${state.token}` },
+      body: JSON.stringify({ conversation_id: state.aiConversationId || 0, message })
+    })
 
-  const reader = response.body.getReader()
-  const decoder = new TextDecoder()
-  let done = false
-  let assistantIndex = state.aiMessages.length
-  state.aiMessages.push({ role: 'assistant', content: '' }) // 新消息占位
+    if (!response.ok) {
+      throw new Error(`HTTP error! status: ${response.status}`)
+    }
 
-  while (!done) {
-    const { value, done: readerDone } = await reader.read()
-    done = readerDone
-    if (value) {
-      const text = decoder.decode(value)
-      const lines = text.split('\n').filter((l) => l.startsWith('data: '))
-      for (const line of lines) {
-        const payload = line.replace(/^data: /, '').trim()
-        if (payload === '[DONE]') {
-          done = true
-          break
-        }
-        try {
-          const json = JSON.parse(payload)
-          const contentDelta = json.choices?.[0]?.delta?.content
-          if (contentDelta) {
-            state.aiMessages[assistantIndex].content += contentDelta
-            renderAiChat()
+    const reader = response.body.getReader()
+    const decoder = new TextDecoder()
+    let done = false
+    let assistantIndex = state.aiMessages.length
+    state.aiMessages.push({ role: 'assistant', content: '' }) // 新消息占位
+    renderAiChat()
+
+    while (!done) {
+      const { value, done: readerDone } = await reader.read()
+      done = readerDone
+      if (value) {
+        const text = decoder.decode(value)
+        const lines = text.split('\n').filter((l) => l.startsWith('data: '))
+        for (const line of lines) {
+          const payload = line.replace(/^data: /, '').trim()
+          if (payload === '[DONE]') {
+            done = true
+            break
           }
-        } catch (e) {
-          // 非 JSON 直接忽略
+          try {
+            const json = JSON.parse(payload)
+            const contentDelta = json.choices?.[0]?.delta?.content
+            if (contentDelta) {
+              state.aiMessages[assistantIndex].content += contentDelta
+              renderAiChat()
+              scrollAiToBottom()
+            }
+          } catch (e) {
+            // 非 JSON 直接忽略
+          }
         }
       }
     }
+
+    // 刷新会话列表
+    await refreshAiConversations()
+  } catch (error) {
+    console.error('AI消息发送失败:', error)
+    setStatus('❌ 发送失败，请重试')
+    setTimeout(() => setStatus(''), 3000)
+  } finally {
+    btn.disabled = false
+    btn.textContent = '发送 ➤'
   }
-
-  btn.disabled = false
-  btn.textContent = '发送'
 }
-
-
-
 
 async function refreshAiConversations() {
   const result = await request('/api/ai/conversations')
@@ -1116,10 +1167,11 @@ contentEl.addEventListener('click', async (event) => {
   if (target.closest('#publish-btn')) return publishPost()
   if (target.closest('#save-profile-btn')) return saveProfile()
   if (target.closest('#new-ai-chat-btn')) {
-  state.aiConversationId = 0
-  state.aiMessages = []
-  return renderAiChat()
-}
+    state.aiConversationId = 0
+    state.aiMessages = []
+    await refreshAiConversations()
+    return renderAiChat()
+  }
 
   const aiConversationBtn = target.closest('.ai-conversation-item')
   if (aiConversationBtn) {
@@ -1146,6 +1198,15 @@ modalContent.addEventListener('click', async (event) => {
   if (deleteBtn) return deletePost(deleteBtn.dataset.postId)
   if (editBtn) return editPost(editBtn.dataset.postId)
 })
+
+// 添加页面底部校园信息
+const footer = document.createElement('footer')
+footer.className = 'campus-footer'
+footer.innerHTML = `
+  <p>🎓 Moment - CUMT校园论坛 | 记录矿大美好时光</p>
+  <p class="footer-subtitle">中国矿业大学 · 学生交流平台</p>
+`
+app.appendChild(footer)
 
 if (state.token) {
   showMain()
