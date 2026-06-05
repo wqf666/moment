@@ -1,4 +1,4 @@
-﻿#include <drogon/drogon.h>
+#include <drogon/drogon.h>
 #include <drogon/orm/DbClient.h>
 #include <drogon/orm/Exception.h>
 #include <json/json.h>
@@ -1176,6 +1176,158 @@ int main() {
         {Get}
     );
 
+    // 获取热门帖子(按点赞数排序)
+    app().registerHandler(
+        "/api/posts/hot",
+        [](const HttpRequestPtr& req, std::function<void(const HttpResponsePtr&)>&& callback) {
+            int64_t currentUserId = 0;
+            getOptionalUserIdFromRequest(req, currentUserId);
+
+            int page = 1;
+            int pageSize = 20;
+            std::string errorMessage;
+            if (!readPagination(req, page, pageSize, errorMessage)) {
+                callback(makeJsonResponse(4301, errorMessage));
+                return;
+            }
+
+            int64_t offset = static_cast<int64_t>(page - 1) * pageSize;
+
+            try {
+                // 获取总数
+                auto countRows = g_db->execSqlSync("SELECT COUNT(*) AS total_count FROM posts");
+                int64_t totalCount = 0;
+                if (!countRows.empty()) {
+                    totalCount = countRows[0]["total_count"].as<int64_t>();
+                }
+
+                // 按点赞数排序查询帖子
+                auto rows = g_db->execSqlSync(
+                    "SELECT p.id, p.user_id, u.username, "
+                    "COALESCE(u.nickname, '') AS nickname, "
+                    "COALESCE(u.avatar_url, '') AS avatar_url, "
+                    "p.content, COALESCE(p.image_url, '') AS image_url, "
+                    "DATE_FORMAT(p.created_at, '%Y-%m-%d %H:%i:%s') AS created_at, "
+                    "COALESCE(lc.like_count, 0) AS like_count, "
+                    "COALESCE(cc.comment_count, 0) AS comment_count, "
+                    "CASE WHEN pl_me.user_id IS NULL THEN 0 ELSE 1 END AS liked "
+                    "FROM posts p "
+                    "JOIN users u ON u.id = p.user_id "
+                    "LEFT JOIN post_likes pl_me ON pl_me.post_id = p.id AND pl_me.user_id = ? "
+                    "LEFT JOIN (SELECT post_id, COUNT(*) AS like_count FROM post_likes GROUP BY post_id) lc ON lc.post_id = p.id "
+                    "LEFT JOIN (SELECT post_id, COUNT(*) AS comment_count FROM comments GROUP BY post_id) cc ON cc.post_id = p.id "
+                    "ORDER BY like_count DESC, p.created_at DESC LIMIT ? OFFSET ?",
+                    currentUserId,
+                    pageSize,
+                    offset
+                );
+
+                Json::Value list(Json::arrayValue);
+                for (const auto& row : rows) {
+                    list.append(rowToPostJson(row, currentUserId));
+                }
+
+                Json::Value data = makePaginationData(
+                    currentUserId,
+                    page,
+                    pageSize,
+                    totalCount,
+                    "posts",
+                    list
+                );
+
+                callback(makeJsonResponse(0, "OK", data));
+            } catch (const drogon::orm::DrogonDbException& e) {
+                std::cerr << "database error posts hot list: " << e.base().what() << std::endl;
+                callback(makeJsonResponse(5001, "Database error"));
+            }
+        },
+        {Get}
+    );
+
+    // 获取关注用户的帖子
+    app().registerHandler(
+        "/api/posts/following",
+        [](const HttpRequestPtr& req, std::function<void(const HttpResponsePtr&)>&& callback) {
+            int64_t currentUserId = 0;
+            getOptionalUserIdFromRequest(req, currentUserId);
+
+            // 必须登录才能查看关注流
+            if (currentUserId == 0) {
+                callback(makeJsonResponse(8000, "Please login to view following feed"));
+                return;
+            }
+
+            int page = 1;
+            int pageSize = 20;
+            std::string errorMessage;
+            if (!readPagination(req, page, pageSize, errorMessage)) {
+                callback(makeJsonResponse(4301, errorMessage));
+                return;
+            }
+
+            int64_t offset = static_cast<int64_t>(page - 1) * pageSize;
+
+            try {
+                // 获取总数
+                auto countRows = g_db->execSqlSync(
+                    "SELECT COUNT(*) AS total_count FROM posts p "
+                    "INNER JOIN user_follows f ON f.following_id = p.user_id "
+                    "WHERE f.follower_id = ?",
+                    currentUserId
+                );
+                int64_t totalCount = 0;
+                if (!countRows.empty()) {
+                    totalCount = countRows[0]["total_count"].as<int64_t>();
+                }
+
+                // 查询关注用户的帖子
+                auto rows = g_db->execSqlSync(
+                    "SELECT p.id, p.user_id, u.username, "
+                    "COALESCE(u.nickname, '') AS nickname, "
+                    "COALESCE(u.avatar_url, '') AS avatar_url, "
+                    "p.content, COALESCE(p.image_url, '') AS image_url, "
+                    "DATE_FORMAT(p.created_at, '%Y-%m-%d %H:%i:%s') AS created_at, "
+                    "COALESCE(lc.like_count, 0) AS like_count, "
+                    "COALESCE(cc.comment_count, 0) AS comment_count, "
+                    "CASE WHEN pl_me.user_id IS NULL THEN 0 ELSE 1 END AS liked "
+                    "FROM posts p "
+                    "JOIN users u ON u.id = p.user_id "
+                    "INNER JOIN user_follows f ON f.following_id = p.user_id "
+                    "LEFT JOIN post_likes pl_me ON pl_me.post_id = p.id AND pl_me.user_id = ? "
+                    "LEFT JOIN (SELECT post_id, COUNT(*) AS like_count FROM post_likes GROUP BY post_id) lc ON lc.post_id = p.id "
+                    "LEFT JOIN (SELECT post_id, COUNT(*) AS comment_count FROM comments GROUP BY post_id) cc ON cc.post_id = p.id "
+                    "WHERE f.follower_id = ? "
+                    "ORDER BY p.created_at DESC LIMIT ? OFFSET ?",
+                    currentUserId,
+                    currentUserId,
+                    pageSize,
+                    offset
+                );
+
+                Json::Value list(Json::arrayValue);
+                for (const auto& row : rows) {
+                    list.append(rowToPostJson(row, currentUserId));
+                }
+
+                Json::Value data = makePaginationData(
+                    currentUserId,
+                    page,
+                    pageSize,
+                    totalCount,
+                    "posts",
+                    list
+                );
+
+                callback(makeJsonResponse(0, "OK", data));
+            } catch (const drogon::orm::DrogonDbException& e) {
+                std::cerr << "database error posts following list: " << e.base().what() << std::endl;
+                callback(makeJsonResponse(5001, "Database error"));
+            }
+        },
+        {Get}
+    );
+
     app().registerHandler(
         "/api/posts/user",
         [](const HttpRequestPtr& req, std::function<void(const HttpResponsePtr&)>&& callback) {
@@ -1762,6 +1914,137 @@ int main() {
                         callback(makeJsonResponse(5001, "Database error"));
                     }
                 );
+            } catch (const drogon::orm::DrogonDbException& e) {
+                std::cerr << "database error: " << e.base().what() << std::endl;
+                callback(makeJsonResponse(5001, "Database error"));
+            }
+        },
+        {Post}
+    );
+
+    // 获取帖子的评论列表
+    app().registerHandler(
+        "/api/comments/post/{post_id}",
+        [](const HttpRequestPtr& req, std::function<void(const HttpResponsePtr&)>&& callback) {
+            int64_t currentUserId = 0;
+            getOptionalUserIdFromRequest(req, currentUserId);
+
+            // 从路由参数中获取 post_id
+            int64_t postId = 0;
+            const auto& routingParams = req->getRoutingParameters();
+            if (routingParams.empty()) {
+                callback(makeJsonResponse(8001, "Invalid post_id"));
+                return;
+            }
+            
+            if (!parsePositiveInt64(routingParams[0], postId)) {
+                callback(makeJsonResponse(8001, "Invalid post_id"));
+                return;
+            }
+
+            int page = 1;
+            int pageSize = 20;
+            std::string errorMessage;
+            if (!readPagination(req, page, pageSize, errorMessage)) {
+                callback(makeJsonResponse(4301, errorMessage));
+                return;
+            }
+
+            int64_t offset = static_cast<int64_t>(page - 1) * pageSize;
+
+            try {
+                // 验证帖子是否存在
+                auto postRows = g_db->execSqlSync("SELECT id FROM posts WHERE id = ?", postId);
+                if (postRows.empty()) {
+                    callback(makeJsonResponse(8002, "Post not found"));
+                    return;
+                }
+
+                // 获取评论总数
+                auto countRows = g_db->execSqlSync(
+                    "SELECT COUNT(*) AS total_count FROM comments WHERE post_id = ?",
+                    postId
+                );
+                int64_t totalCount = 0;
+                if (!countRows.empty()) {
+                    totalCount = countRows[0]["total_count"].as<int64_t>();
+                }
+
+                // 获取评论列表(按时间正序)
+                auto rows = g_db->execSqlSync(
+                    "SELECT c.id, c.post_id, c.user_id, u.username, "
+                    "COALESCE(u.nickname, '') AS nickname, "
+                    "COALESCE(u.avatar_url, '') AS avatar_url, "
+                    "c.content, DATE_FORMAT(c.created_at, '%Y-%m-%d %H:%i:%s') AS created_at "
+                    "FROM comments c "
+                    "JOIN users u ON u.id = c.user_id "
+                    "WHERE c.post_id = ? "
+                    "ORDER BY c.created_at ASC "
+                    "LIMIT ? OFFSET ?",
+                    postId,
+                    pageSize,
+                    offset
+                );
+
+                Json::Value list(Json::arrayValue);
+                for (const auto& row : rows) {
+                    Json::Value comment;
+                    comment["comment_id"] = static_cast<Json::Int64>(row["id"].as<int64_t>());
+                    comment["post_id"] = static_cast<Json::Int64>(row["post_id"].as<int64_t>());
+                    comment["user_id"] = static_cast<Json::Int64>(row["user_id"].as<int64_t>());
+                    comment["username"] = row["username"].as<std::string>();
+                    comment["nickname"] = row["nickname"].as<std::string>();
+                    comment["avatar_url"] = row["avatar_url"].as<std::string>();
+                    comment["content"] = row["content"].as<std::string>();
+                    comment["created_at"] = row["created_at"].as<std::string>();
+                    comment["is_owner"] = (row["user_id"].as<int64_t>() == currentUserId);
+                    comment["can_delete"] = (row["user_id"].as<int64_t>() == currentUserId);
+                    list.append(comment);
+                }
+
+                Json::Value data = makePaginationData(
+                    currentUserId,
+                    page,
+                    pageSize,
+                    totalCount,
+                    "comments",
+                    list
+                );
+
+                callback(makeJsonResponse(0, "OK", data));
+            } catch (const drogon::orm::DrogonDbException& e) {
+                std::cerr << "database error comments list: " << e.base().what() << std::endl;
+                callback(makeJsonResponse(5001, "Database error"));
+            }
+        },
+        {Get}
+    );
+
+    app().registerHandler(
+        "/api/posts/delete",
+        [](const HttpRequestPtr& req, std::function<void(const HttpResponsePtr&)>&& callback) {
+            int64_t currentUserId = 0;
+            std::string errorMessage;
+            if (!getUserIdFromRequest(req, currentUserId, errorMessage)) {
+                callback(makeJsonResponse(11300, errorMessage));
+                return;
+            }
+
+            int64_t postId = 0;
+            if (!parsePositiveInt64(req->getParameter("post_id"), postId)) {
+                callback(makeJsonResponse(11301, "Invalid post_id"));
+                return;
+            }
+
+            try {
+                auto rows = g_db->execSqlSync("SELECT id FROM posts WHERE id = ? AND user_id = ?", postId, currentUserId);
+                if (rows.empty()) {
+                    callback(makeJsonResponse(11302, "Post not found"));
+                    return;
+                }
+
+                g_db->execSqlSync("DELETE FROM posts WHERE id = ?", postId);
+                callback(makeJsonResponse(0, "Post deleted"));
             } catch (const drogon::orm::DrogonDbException& e) {
                 std::cerr << "database error: " << e.base().what() << std::endl;
                 callback(makeJsonResponse(5001, "Database error"));
