@@ -1645,7 +1645,7 @@ int main() {
 
             int64_t postId = 0;
             if (!parseJsonInt64(*json, "post_id", postId)) {
-                callback(makeJsonResponse(11802, "Invalid post_id: post_id must be a positive integer"));
+                callback(makeJsonResponse(9002, "Invalid post_id: post_id must be a positive integer"));
                 return;
             }
 
@@ -2018,39 +2018,6 @@ int main() {
             }
         },
         {Get}
-    );
-
-    app().registerHandler(
-        "/api/posts/delete",
-        [](const HttpRequestPtr& req, std::function<void(const HttpResponsePtr&)>&& callback) {
-            int64_t currentUserId = 0;
-            std::string errorMessage;
-            if (!getUserIdFromRequest(req, currentUserId, errorMessage)) {
-                callback(makeJsonResponse(11300, errorMessage));
-                return;
-            }
-
-            int64_t postId = 0;
-            if (!parsePositiveInt64(req->getParameter("post_id"), postId)) {
-                callback(makeJsonResponse(11301, "Invalid post_id"));
-                return;
-            }
-
-            try {
-                auto rows = g_db->execSqlSync("SELECT id FROM posts WHERE id = ? AND user_id = ?", postId, currentUserId);
-                if (rows.empty()) {
-                    callback(makeJsonResponse(11302, "Post not found"));
-                    return;
-                }
-
-                g_db->execSqlSync("DELETE FROM posts WHERE id = ?", postId);
-                callback(makeJsonResponse(0, "Post deleted"));
-            } catch (const drogon::orm::DrogonDbException& e) {
-                std::cerr << "database error: " << e.base().what() << std::endl;
-                callback(makeJsonResponse(5001, "Database error"));
-            }
-        },
-        {Post}
     );
 
     app().registerHandler(
