@@ -32,7 +32,7 @@ app.innerHTML = `
       <div>
         <h1>🎓 Moment</h1>
         <p id="current-user-text">未登录</p>
-        <p class="site-subtitle">CUMT校园论坛 · 记录矿大美好时光</p>
+        <p class="site-subtitle">CPP大学校园论坛 · 记录美好时光</p>
       </div>
       <div class="top-actions">
         <button id="dev-login-open-btn" class="ghost-btn">测试登录</button>
@@ -49,7 +49,7 @@ app.innerHTML = `
 
         <div id="login-box">
           <h2>👋 欢迎回到Moment</h2>
-          <p class="muted">使用你的矿大账号登录，开启校园生活新篇章</p>
+          <p class="muted">使用你的CPP大学账号登录，开启校园生活新篇章</p>
 
           <div class="form-row">
             <label>用户名</label>
@@ -67,7 +67,7 @@ app.innerHTML = `
 
         <div id="register-box" style="display:none;">
           <h2>🎉 加入Moment大家庭</h2>
-          <p class="muted">注册矿大专属账号，与同学们一起分享校园生活</p>
+          <p class="muted">注册CPP大学专属账号，与同学们一起分享校园生活</p>
 
           <div class="form-row">
             <label>用户名</label>
@@ -424,7 +424,44 @@ function getDisplayName(userOrPost) {
 function getAvatarText(userOrPost) {
   return getDisplayName(userOrPost).slice(0, 1).toUpperCase()
 }
+function getPostId(post) {
+  return post?.post_id || post?.id || ''
+}
 
+function getMediaUrl(post) {
+  return post?.media_url || post?.image_url || post?.file_url || post?.url || ''
+}
+
+function normalizePost(post = {}) {
+  const mediaUrl = getMediaUrl(post)
+  const postId = getPostId(post)
+
+  return {
+    ...post,
+    id: post.id || postId,
+    post_id: post.post_id || postId,
+    media_url: mediaUrl,
+    image_url: mediaUrl,
+    like_count: post.like_count || 0,
+    comment_count: post.comment_count || 0,
+    is_owner:
+      post.is_owner ||
+      String(post.user_id || '') === String(state.currentUserId || '')
+  }
+}
+
+function normalizePostList(list = []) {
+  return Array.isArray(list) ? list.map(normalizePost) : []
+}
+
+function pickList(data, keys) {
+  for (const key of keys) {
+    if (Array.isArray(data?.[key])) {
+      return data[key]
+    }
+  }
+  return []
+}
 function renderAvatar(userOrPost) {
   const avatarUrl = userOrPost?.avatar_url || ''
   const letter = escapeHtml(getAvatarText(userOrPost))
@@ -439,8 +476,21 @@ function renderAvatar(userOrPost) {
 }
 
 function renderPostImage(post) {
-  if (!post.image_url) return ''
-  return `<img class="post-image" src="${escapeHtml(post.image_url)}" alt="帖子图片" onerror="this.style.display='none';" />`
+  const mediaUrl = getMediaUrl(post)
+
+  if (!mediaUrl) return ''
+
+  const lower = mediaUrl.toLowerCase()
+
+  if (lower.endsWith('.mp4') || lower.endsWith('.mov') || lower.endsWith('.avi')) {
+    return `
+      <video class="post-image" src="${escapeHtml(mediaUrl)}" controls></video>
+    `
+  }
+
+  return `
+    <img class="post-image" src="${escapeHtml(mediaUrl)}" alt="动态媒体" />
+  `
 }
 
 function renderPostCard(post) {
@@ -489,7 +539,12 @@ function renderPostList(posts, emptyText = '🌟 校园广场还没有动态，�
 
 async function loadLatestPosts() {
   setStatus('正在加载首页帖子...')
-  const result = await request('/api/posts/latest?page=1&page_size=20')
+
+  let result = await request('/api/posts/latest?page=1&page_size=20')
+
+  if (result.code !== 0) {
+    result = await request('/api/posts?page=1&page_size=20')
+  }
 
   if (result.code !== 0) {
     setStatus(result.message || '加载失败')
@@ -497,12 +552,16 @@ async function loadLatestPosts() {
     return
   }
 
+  const data = result.data || {}
+  const posts = pickList(data, ['posts', 'list', 'items', 'records'])
+
   setStatus('')
-  renderPostList(result.data?.posts || [])
+  renderPostList(posts)
 }
 
 async function loadFollowingFeed() {
   setStatus('正在加载关注流...')
+
   const result = await request('/api/feed/following?page=1&page_size=20')
 
   if (result.code !== 0) {
@@ -511,8 +570,11 @@ async function loadFollowingFeed() {
     return
   }
 
+  const data = result.data || {}
+  const posts = pickList(data, ['posts', 'list', 'items', 'records'])
+
   setStatus('')
-  renderPostList(result.data?.posts || [], '关注的人还没有发帖')
+  renderPostList(posts, '关注的人还没有发帖')
 }
 
 function renderCreatePost() {
@@ -520,11 +582,11 @@ function renderCreatePost() {
   contentEl.innerHTML = `
     <section class="panel create-post-panel">
       <h2>✍️ 发布校园动态</h2>
-      <p class="post-hint">分享你在矿大的学习、生活、活动点滴 🎓</p>
+      <p class="post-hint">分享你在CPP大学的学习、生活、活动点滴 🎓</p>
       
       <div class="form-row">
         <label>内容</label>
-        <textarea id="create-content" class="textarea" placeholder="今天矿大发生了什么有趣的事？或者分享一下你的学习笔记..." rows="5"></textarea>
+        <textarea id="create-content" class="textarea" placeholder="今天CPP大学发生了什么有趣的事？或者分享一下你的学习笔记..." rows="5"></textarea>
       </div>
 
       <div class="form-row">
@@ -549,9 +611,20 @@ async function uploadFile(file) {
     body: formData
   })
 
-  if (result.code !== 0) throw new Error(result.message || '上传失败')
+  if (result.code !== 0) {
+    throw new Error(result.message || '上传失败')
+  }
 
-  return result.data?.media_url || result.data?.url || result.data?.file_url || result.media_url || ''
+  const data = result.data || {}
+
+  return (
+    data.media_url ||
+    data.url ||
+    data.file_url ||
+    data.path ||
+    result.media_url ||
+    ''
+  )
 }
 
 async function handleCreateUpload() {
@@ -583,10 +656,13 @@ async function publishPost() {
     return
   }
 
-  // 使用新字段名 media_url
   const result = await request('/api/posts/create', {
     method: 'POST',
-    body: JSON.stringify({ content, media_url: state.uploadedImageUrl })
+    body: JSON.stringify({
+      content,
+      media_url: state.uploadedImageUrl,
+      image_url: state.uploadedImageUrl
+    })
   })
 
   if (result.code !== 0) {
@@ -597,7 +673,6 @@ async function publishPost() {
   alert('发布成功')
   await openTab('latest')
 }
-
 async function toggleLike(postId, button) {
   button.disabled = true
   try {
@@ -619,26 +694,21 @@ async function toggleLike(postId, button) {
     button.disabled = false
   }
 }
-
 async function deletePost(postId) {
-  // 验证postId是否有效
-  if (!postId || postId === '' || postId === 'undefined' || postId === 'null') {
-    alert('帖子ID无效，请刷新页面后重试')
-    return
-  }
-  
-  const numericPostId = Number(postId)
-  if (!numericPostId || numericPostId <= 0 || !Number.isInteger(numericPostId)) {
-    alert('帖子ID格式错误，请刷新页面后重试')
-    return
-  }
-  
   if (!confirm('确定删除这条帖子吗？')) return
 
-  // 使用RESTful DELETE方法，post_id在URL路径中
-  const result = await request(`/api/posts/${numericPostId}`, {
+  let result = await request(`/api/posts/${encodeURIComponent(postId)}`, {
     method: 'DELETE'
   })
+
+  if (result.code !== 0) {
+    result = await request('/api/posts/delete', {
+      method: 'POST',
+      body: JSON.stringify({
+        post_id: Number(postId)
+      })
+    })
+  }
 
   if (result.code !== 0) {
     alert(result.message || '删除失败')
@@ -651,33 +721,38 @@ async function deletePost(postId) {
 }
 
 async function editPost(postId) {
-  // 验证postId是否有效
-  if (!postId || postId === '' || postId === 'undefined' || postId === 'null') {
-    alert('帖子ID无效，请刷新页面后重试')
-    return
-  }
-  
-  const numericPostId = Number(postId)
-  if (!numericPostId || numericPostId <= 0 || !Number.isInteger(numericPostId)) {
-    alert('帖子ID格式错误，请刷新页面后重试')
-    return
-  }
-  
-  const post = state.posts.find((item) => String(item.post_id || item.id) === String(postId)) || {}
+  const post =
+    state.posts.find((item) => String(getPostId(item)) === String(postId)) || {}
+
   const oldContent = post.content || ''
-  const oldImageUrl = post.image_url || post.media_url || ''
+  const oldMediaUrl = getMediaUrl(post)
 
   const newContent = prompt('请输入新的帖子内容：', oldContent)
   if (newContent === null) return
 
-  const newImageUrl = prompt('请输入新的图片 URL，可以留空：', oldImageUrl)
-  if (newImageUrl === null) return
+  const newMediaUrl = prompt('请输入新的图片 / 视频 URL，可以留空：', oldMediaUrl)
+  if (newMediaUrl === null) return
 
-  // 使用RESTful PUT方法，post_id在URL路径中
-  const result = await request(`/api/posts/${numericPostId}`, {
+  let result = await request(`/api/posts/${encodeURIComponent(postId)}`, {
     method: 'PUT',
-    body: JSON.stringify({ content: newContent, media_url: newImageUrl })
+    body: JSON.stringify({
+      content: newContent,
+      media_url: newMediaUrl,
+      image_url: newMediaUrl
+    })
   })
+
+  if (result.code !== 0) {
+    result = await request('/api/posts/update', {
+      method: 'POST',
+      body: JSON.stringify({
+        post_id: Number(postId),
+        content: newContent,
+        media_url: newMediaUrl,
+        image_url: newMediaUrl
+      })
+    })
+  }
 
   if (result.code !== 0) {
     alert(result.message || '编辑失败')
@@ -687,40 +762,50 @@ async function editPost(postId) {
   alert('编辑成功')
   await openTab(state.currentTab)
 }
-
 async function showPostDetail(postId) {
   modal.style.display = 'flex'
-  modalContent.innerHTML = '<div class="status">正在加载帖子详情...</div>'
+  modalContent.innerHTML = `
+    <div class="loading">正在加载帖子详情...</div>
+  `
+
   state.detailPostId = postId
 
-  const result = await request(`/api/posts/detail?post_id=${encodeURIComponent(postId)}`)
+  let result = await request(`/api/posts/${encodeURIComponent(postId)}`)
 
   if (result.code !== 0) {
-    modalContent.innerHTML = `<div class="empty">${escapeHtml(result.message || '加载失败')}</div>`
+    result = await request(`/api/posts/detail?post_id=${encodeURIComponent(postId)}`)
+  }
+
+  if (result.code !== 0) {
+    modalContent.innerHTML = `
+      <div class="empty-state">${escapeHtml(result.message || '加载失败')}</div>
+    `
     return
   }
 
   const data = result.data || {}
-  const post = data.post || data.post_detail || data
-  const comments = data.comments || data.comment_list || []
+  const post = normalizePost(data.post || data.post_detail || data)
+
+  const comments =
+    data.comments ||
+    data.comment_list ||
+    data.list ||
+    []
 
   modalContent.innerHTML = `
     <h2>帖子详情</h2>
-    <div class="detail-post">${renderPostCard(post)}</div>
+    ${renderPostCard(post)}
 
-    <section class="comment-box">
+    <div class="comment-section">
       <h3>发表评论</h3>
-      <textarea id="comment-content" class="textarea" rows="3" placeholder="写一条评论..."></textarea>
-      <button id="send-comment-btn" class="primary-btn">发送评论</button>
-    </section>
+      <textarea id="comment-content" placeholder="写下你的评论..."></textarea>
+      <button id="send-comment-btn">发送评论</button>
 
-    <section class="comments">
       <h3>评论列表</h3>
       ${renderComments(comments)}
-    </section>
+    </div>
   `
 }
-
 function renderComments(comments) {
   if (!comments || comments.length === 0) return '<div class="empty small-empty">💬 还没有评论，快来抢沙发！</div>'
   return `
@@ -781,8 +866,11 @@ async function loadUserHome(userId) {
   const data = result.data || {}
   const user = data.user || {}
   const stats = data.stats || {}
-  const posts = data.posts || []
-  state.posts = posts
+  const posts = normalizePostList(
+  data.posts || data.list || data.items || []
+)
+
+state.posts = posts
 
   if (isMe && user) {
     state.currentUser = user
@@ -878,11 +966,11 @@ function renderProfileEditor() {
   contentEl.innerHTML = `
     <section class="panel profile-editor-panel">
       <h2>⚙️ 编辑个人资料</h2>
-      <p class="profile-hint">完善你的矿大身份，让更多同学认识你 🎓</p>
+      <p class="profile-hint">完善你的CPP大学身份，让更多同学认识你 🎓</p>
       
       <div class="form-row">
         <label>昵称</label>
-        <input id="profile-nickname" class="input" value="${escapeHtml(user.nickname || '')}" placeholder="例如：矿大小明" />
+        <input id="profile-nickname" class="input" value="${escapeHtml(user.nickname || '')}" placeholder="例如：CPP小明" />
       </div>
 
       <div class="form-row">
@@ -926,6 +1014,19 @@ async function saveProfile() {
   alert('保存成功')
   await openTab('mine')
 }
+
+function getConversationId(item) {
+  return item?.conversation_id || item?.id || ''
+}
+
+function pickArray(data, keys) {
+  for (const key of keys) {
+    if (Array.isArray(data?.[key])) {
+      return data[key]
+    }
+  }
+  return []
+}
 async function loadAiChat() {
   setStatus('正在加载 AI 助手...')
 
@@ -937,8 +1038,16 @@ async function loadAiChat() {
     return
   }
 
-  state.aiConversations = result.data?.conversations || []
-  state.aiConversationId = state.aiConversations[0]?.conversation_id || 0
+  const data = result.data || {}
+
+  state.aiConversations = pickArray(data, [
+    'conversations',
+    'list',
+    'items',
+    'records'
+  ])
+
+  state.aiConversationId = getConversationId(state.aiConversations[0]) || 0
 
   if (state.aiConversationId) {
     await loadAiMessages(state.aiConversationId)
@@ -951,75 +1060,131 @@ async function loadAiChat() {
 }
 
 async function loadAiMessages(conversationId) {
-  const result = await request(`/api/ai/messages?conversation_id=${encodeURIComponent(conversationId)}`)
+  const result = await request(
+    `/api/ai/messages?conversation_id=${encodeURIComponent(conversationId)}`
+  )
 
   if (result.code !== 0) {
     alert(result.message || '加载聊天记录失败')
     return
   }
 
+  const data = result.data || {}
+
   state.aiConversationId = conversationId
-  state.aiMessages = result.data?.messages || []
+
+  state.aiMessages = pickArray(data, [
+    'messages',
+    'list',
+    'items',
+    'records'
+  ])
+}
+function renderAiMessage(message) {
+  const role = message?.role || message?.sender || 'assistant'
+  const content = message?.content || message?.message || message?.text || ''
+  const time = message?.created_at || message?.updated_at || ''
+
+  const isUser = role === 'user'
+
+  return `
+    <div class="ai-message ${isUser ? 'user-message' : 'assistant-message'}">
+      <div class="ai-message-avatar">
+        ${isUser ? '我' : 'AI'}
+      </div>
+      <div class="ai-message-body">
+        <div class="ai-message-meta">
+          <span>${isUser ? '我' : 'Moment AI'}</span>
+          ${time ? `<small>${escapeHtml(formatTime(time))}</small>` : ''}
+        </div>
+        <div class="ai-message-content">
+          ${escapeHtml(content).replaceAll('\n', '<br>')}
+        </div>
+      </div>
+    </div>
+  `
 }
 
 function renderAiChat() {
+  const activeConversationId = String(state.aiConversationId || '')
+
+  const conversationHtml = state.aiConversations.length
+    ? state.aiConversations
+        .map((item) => {
+          const conversationId = getConversationId(item)
+          const isActive = String(conversationId) === activeConversationId
+
+          return `
+            <button
+              class="ai-conversation-item ${isActive ? 'active' : ''}"
+              data-conversation-id="${escapeHtml(conversationId)}"
+            >
+              <span>${escapeHtml(item.title || 'AI Chat')}</span>
+              <small>${escapeHtml(item.updated_at || item.created_at || '')}</small>
+            </button>
+          `
+        })
+        .join('')
+    : `
+      <div class="empty-state">
+        暂无会话，点击“新会话”开始聊天
+      </div>
+    `
+
+  const messagesHtml = state.aiMessages.length
+    ? state.aiMessages.map(renderAiMessage).join('')
+    : `
+      <div class="ai-welcome">
+        <h3>你好！我是 Moment AI 助手</h3>
+        <p>我可以帮你解答校园相关问题、提供学习建议、协助创作内容等。</p>
+      </div>
+    `
+
   contentEl.innerHTML = `
-    <section class="ai-layout">
-      <aside class="ai-sidebar">
+    <div class="ai-page">
+      <div class="ai-sidebar">
         <div class="ai-sidebar-header">
-          <h2>💬 AI 会话</h2>
-          <button id="new-ai-chat-btn" class="ghost-btn">✨ 新会话</button>
+          <h2>AI 会话</h2>
+          <button id="new-ai-chat-btn" class="secondary-btn">✨ 新会话</button>
         </div>
 
         <div class="ai-conversation-list">
-          ${
-            state.aiConversations.length
-              ? state.aiConversations.map((item) => `
-                <button class="ai-conversation-item ${String(item.conversation_id) === String(state.aiConversationId) ? 'active' : ''}"
-                  data-conversation-id="${escapeHtml(item.conversation_id)}">
-                  <strong>${escapeHtml(item.title || 'AI Chat')}</strong>
-                  <span>${escapeHtml(item.updated_at || '')}</span>
-                </button>
-              `).join('')
-              : '<div class="empty small-empty">暂无会话，点击"新会话"开始聊天</div>'
-          }
+          ${conversationHtml}
         </div>
-      </aside>
+      </div>
 
-      <section class="ai-chat-panel">
-        <div class="ai-message-list" id="ai-message-list">
-          ${
-            state.aiMessages.length
-              ? state.aiMessages.map(renderAiMessage).join('')
-              : '<div class="ai-welcome"><div class="ai-welcome-icon">🎓</div><h3>你好！我是Moment AI助手</h3><p>我可以帮你解答矿大相关问题、提供学习建议、协助创作内容等。<br/>比如：图书馆开放时间、食堂推荐、课程攻略等。</p></div>'
-          }
+      <div class="ai-chat-panel">
+        <div id="ai-message-list" class="ai-message-list">
+          ${messagesHtml}
         </div>
 
-        <div class="ai-input-bar">
-          <textarea id="ai-input" class="textarea" rows="3" placeholder="问我关于矿大的任何问题..."></textarea>
-          <button id="send-ai-message-btn" class="primary-btn">发送 ➤</button>
+        <div class="ai-input-area">
+          <textarea
+            id="ai-input"
+            placeholder="输入你想问的问题，按 Enter 发送，Shift + Enter 换行"
+          ></textarea>
+          <button id="send-ai-message-btn">发送 ➤</button>
         </div>
-      </section>
-    </section>
+      </div>
+    </div>
   `
 
   setTimeout(scrollAiToBottom, 0)
 }
 
-function renderAiMessage(message) {
-  const role = message.role === 'assistant' ? 'assistant' : 'user'
-  const name = role === 'assistant' ? '🤖 AI助手' : '👤 我'
-  const time = message.created_at ? formatTime(message.created_at) : ''
+async function refreshAiConversations() {
+  const result = await request('/api/ai/conversations')
 
-  return `
-    <div class="ai-message ${role}">
-      <div class="ai-message-header">
-        <div class="ai-message-role">${name}</div>
-        ${time ? `<div class="ai-message-time">${time}</div>` : ''}
-      </div>
-      <div class="ai-message-content">${escapeHtml(message.content || '')}</div>
-    </div>
-  `
+  if (result.code === 0) {
+    const data = result.data || {}
+
+    state.aiConversations = pickArray(data, [
+      'conversations',
+      'list',
+      'items',
+      'records'
+    ])
+  }
 }
 
 function formatTime(dateString) {
@@ -1038,7 +1203,7 @@ function formatTime(dateString) {
       return `${Math.floor(diff / 60000)}分钟前`
     }
     // 小于24小时
-    if (diff < 86400000) {
+    if (diff < 86600000) {
       return `${Math.floor(diff / 3600000)}小时前`
     }
     // 其他情况显示日期时间
@@ -1056,26 +1221,42 @@ function scrollAiToBottom() {
   const box = $('#ai-message-list')
   if (box) box.scrollTop = box.scrollHeight
 }
-
 async function sendAiMessageStream() {
   const input = $('#ai-input')
   const btn = $('#send-ai-message-btn')
   const message = input.value.trim()
+
   if (!message) return
 
   input.value = ''
   btn.disabled = true
   btn.textContent = '⏳ 思考中...'
 
-  state.aiMessages.push({ role: 'user', content: message })
+  state.aiMessages.push({
+    role: 'user',
+    content: message
+  })
+
+  state.aiMessages.push({
+    role: 'assistant',
+    content: ''
+  })
+
+  const assistantIndex = state.aiMessages.length - 1
+
   renderAiChat()
-  scrollAiToBottom()
 
   try {
     const response = await fetch('/api/ai/chat/stream', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${state.token}` },
-      body: JSON.stringify({ conversation_id: state.aiConversationId || 0, message })
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${state.token}`
+      },
+      body: JSON.stringify({
+        conversation_id: state.aiConversationId || 0,
+        message
+      })
     })
 
     if (!response.ok) {
@@ -1084,56 +1265,80 @@ async function sendAiMessageStream() {
 
     const reader = response.body.getReader()
     const decoder = new TextDecoder()
+    let buffer = ''
     let done = false
-    let assistantIndex = state.aiMessages.length
-    state.aiMessages.push({ role: 'assistant', content: '' }) // 新消息占位
-    renderAiChat()
 
     while (!done) {
       const { value, done: readerDone } = await reader.read()
       done = readerDone
-      if (value) {
-        const text = decoder.decode(value)
-        const lines = text.split('\n').filter((l) => l.startsWith('data: '))
-        for (const line of lines) {
-          const payload = line.replace(/^data: /, '').trim()
-          if (payload === '[DONE]') {
-            done = true
-            break
-          }
-          try {
-            const json = JSON.parse(payload)
-            const contentDelta = json.choices?.[0]?.delta?.content
-            if (contentDelta) {
-              state.aiMessages[assistantIndex].content += contentDelta
-              renderAiChat()
+
+      if (!value) continue
+
+      buffer += decoder.decode(value, { stream: true })
+
+      const lines = buffer.split('\n')
+      buffer = lines.pop() || ''
+
+      for (const line of lines) {
+        if (!line.startsWith('data: ')) continue
+
+        const payload = line.replace(/^data: /, '').trim()
+
+        if (payload === '[DONE]') {
+          done = true
+          break
+        }
+
+        try {
+          const json = JSON.parse(payload)
+
+          const contentDelta =
+            json.choices?.[0]?.delta?.content ||
+            json.content ||
+            json.delta ||
+            ''
+
+          if (contentDelta) {
+            state.aiMessages[assistantIndex].content += contentDelta
+
+            const messageList = $('#ai-message-list')
+            if (messageList) {
+              messageList.innerHTML = state.aiMessages.map(renderAiMessage).join('')
               scrollAiToBottom()
             }
-          } catch (e) {
-            // 非 JSON 直接忽略
           }
+
+          const conversationId =
+            json.conversation_id ||
+            json.id ||
+            json.data?.conversation_id ||
+            0
+
+          if (conversationId) {
+            state.aiConversationId = conversationId
+          }
+        } catch {
+          // 忽略非 JSON 数据
         }
       }
     }
 
-    // 刷新会话列表
     await refreshAiConversations()
+    renderAiChat()
   } catch (error) {
     console.error('AI消息发送失败:', error)
-    setStatus('❌ 发送失败，请重试')
+    setStatus(`❌ ${error.message || '发送失败，请重试'}`)
     setTimeout(() => setStatus(''), 3000)
   } finally {
-    btn.disabled = false
-    btn.textContent = '发送 ➤'
+    const newBtn = $('#send-ai-message-btn')
+    if (newBtn) {
+      newBtn.disabled = false
+      newBtn.textContent = '发送 ➤'
+    }
   }
 }
 
-async function refreshAiConversations() {
-  const result = await request('/api/ai/conversations')
-  if (result.code === 0) {
-    state.aiConversations = result.data?.conversations || []
-  }
-}
+
 async function navigateToUser(userId) {
   if (!userId) return
   modal.style.display = 'none'
@@ -1234,8 +1439,8 @@ modalContent.addEventListener('click', async (event) => {
 const footer = document.createElement('footer')
 footer.className = 'campus-footer'
 footer.innerHTML = `
-  <p>🎓 Moment - CUMT校园论坛 | 记录矿大美好时光</p>
-  <p class="footer-subtitle">中国矿业大学 · 学生交流平台</p>
+  <p>🎓 Moment - CPP大学校园论坛 | 记录美好时光</p>
+  <p class="footer-subtitle">CPP大学 · 学生交流平台</p>
 `
 app.appendChild(footer)
 

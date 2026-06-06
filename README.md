@@ -1,10 +1,10 @@
-# 🎓 Moment - 校园论坛
+# 🎓 Moment - CPP大学校园论坛
 
 <div align="center">
 
-![Moment Logo](https://img.shields.io/badge/Moment-CUMT-667eea?style=for-the-badge&logo=data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAxMDAgMTAwIj48dGV4dCB5PSIuOWVtIiBmb250LXNpemU9IjkwIj7wn46TPC90ZXh0Pjwvc3ZnPg==)
+![Moment Logo](https://img.shields.io/badge/Moment-CPP%20University-667eea?style=for-the-badge&logo=data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAxMDAgMTAwIj48dGV4dCB5PSIuOWVtIiBmb250LXNpemU9IjkwIj7wn46TPC90ZXh0Pjwvc3ZnPg==)
 
-**记录美好时光 · 大学专属社交平台**
+**记录美好时光 · CPP大学专属社交平台**
 
 [![License](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 [![Frontend](https://img.shields.io/badge/frontend-Vanilla%20JS-yellow)](echo-client/)
@@ -17,15 +17,15 @@
 
 ## 📖 项目简介
 
-**Moment** 是专为大学生打造的校园社交平台，集动态分享、社交互动、AI助手于一体，帮助同学们记录和分享在矿大的美好校园生活。
+**Moment** 是专为大学生打造的校园社交平台，集动态分享、社交互动、AI助手于一体，帮助同学们记录和分享在CPP大学的美好校园生活。
 
 ### ✨ 核心功能
 
 - 🏠 **校园广场** - 浏览全校同学的最新动态
 - 💫 **关注流** - 只看你关心的同学和话题
 - ✍️ **发布动态** - 分享学习、生活、活动点滴
-- 👤 **个人空间** - 展示你的矿大身份和风采
-- 🤖 **AI助手** - 解答矿大相关问题，提供学习和生活建议
+- 👤 **个人空间** - 展示你的CPP大学身份和风采
+- 🤖 **AI助手** - 解答校园相关问题，提供学习和生活建议
 - 💬 **评论互动** - 与同学们畅所欲言
 - 👥 **关注系统** - 建立你的校园社交圈
 
@@ -45,8 +45,8 @@
 #### 1. 克隆项目
 
 ```bash
-git clone https://github.com/your-username/moment-cumt.git
-cd moment-cumt
+git clone https://github.com/wqf666/moment.git
+cd moment
 ```
 
 #### 2. 初始化子模块
@@ -62,7 +62,7 @@ cd echo-server
 mkdir -p build && cd build
 cmake .. -DCMAKE_BUILD_TYPE=Release
 make -j$(nproc)
-./echo_server
+./echo-server
 ```
 
 后端服务将运行在 `http://127.0.0.1:8080`
@@ -95,7 +95,7 @@ npm run dev
 ## 📁 项目结构
 
 ```
-moment-cumt/
+moment/
 ├── echo-client/          # 前端应用
 │   ├── src/             # 源代码
 │   │   ├── main.js      # 主应用逻辑
@@ -111,7 +111,7 @@ moment-cumt/
 │   │   └── services/    # 业务服务
 │   ├── scripts/         # 启动脚本
 │   ├── CMakeLists.txt   # CMake配置
-│   └── docs/            # API文档
+│   └── API_DOC.md       # API文档
 │
 ├── echo-ai/             # AI服务
 │   ├── llama.cpp/       # LLM推理引擎（子模块）
@@ -135,7 +135,7 @@ moment-cumt/
 ### 后端
 - **语言**: C++17
 - **Web框架**: [Drogon](https://github.com/drogonframework/drogon)
-- **数据库**: MySQL 8.0+ (统一使用MySQL)
+- **数据库**: MySQL 8.0+
 - **缓存**: Redis (可选)
 - **构建系统**: CMake
 
@@ -143,16 +143,6 @@ moment-cumt/
 - **推理引擎**: [llama.cpp](https://github.com/ggerganov/llama.cpp)
 - **模型**: Qwen2.5-1.5B-Instruct (量化版)
 - **API**: OpenAI兼容接口
-
-
-
-## 📸 界面预览
-
-### 主要页面
-- **登录/注册页** - 简洁友好的用户入口
-- **校园广场** - 瀑布流展示最新动态
-- **个人空间** - 个性化资料展示
-- **AI助手** - 智能对话界面
 
 ---
 
@@ -163,7 +153,7 @@ moment-cumt/
 #### 添加新的API端点
 
 1. 在 `echo-server/src/controllers/` 创建控制器
-2. 在 `main.cpp` 中注册路由
+2. 在路由注册文件中添加路由
 3. 实现业务逻辑
 
 示例:
@@ -180,13 +170,13 @@ void MyController::handleNewFeature(const HttpRequestPtr& req,
 
 #### 数据库初始化
 
-```
+```bash
 # 执行统一的数据库初始化脚本
 cd echo-server
 mysql -u echo_user -p < sql/init.sql
 ```
 
-SQL脚本统一放在 `echo-server/sql/` 目录，使用MySQL语法。
+SQL脚本统一放在 `echo-server/sql/` 目录。
 
 ### 前端开发
 
@@ -202,77 +192,31 @@ SQL脚本统一放在 `echo-server/sql/` 目录，使用MySQL语法。
 
 ---
 
-## 🧪 测试
-
-### API测试
-
-```bash
-cd echo-server
-bash test_api.sh
-```
-
-### AI接口测试
-
-```bash
-cd echo-server
-bash scripts/test_ai.sh
-```
-
----
-
 ## 📝 API文档
 
-API 文档位置：
-
-```
-echo-server/API_DOC.md
-```
+完整API文档请查看：[`echo-server/API_DOC.md`](echo-server/API_DOC.md)
 
 主要接口包括：
 
 | 模块 | 接口 |
 |---|---|
 | 认证 | `/api/auth/register`, `/api/auth/login` |
-| 帖子 | `/api/posts`, `/api/posts/mine`, `/api/posts/update` |
-| 评论 | `/api/comments` |
+| 帖子 | `/api/posts`, `/api/posts/latest`, `/api/feed/following` |
+| 互动 | `/api/posts/like/toggle`, `/api/posts/comment` |
 | 关注 | `/api/follows/toggle`, `/api/follows/followers`, `/api/follows/following` |
-| 信息流 | `/api/feed/following` |
-| 用户 | `/api/users/profile/update`, `/api/users/home`, `/api/users/media` |
+| 用户 | `/api/users/me`, `/api/users/profile/update` |
 | AI | `/api/ai/chat`, `/api/ai/conversations`, `/api/ai/messages` |
-
-完整说明见：[`echo-server/API_DOC.md`](echo-server/API_DOC.md)
+| 媒体 | `/api/upload/media`, `/api/media/file/{fileName}` |
 
 ---
 
-## 常见问题
+## ❓ 常见问题
 
-### 1. `./echo_server: No such file or directory`
+### 1. 可执行文件找不到
 
-请检查 CMake 生成的可执行文件名。建议统一使用：
+请检查 CMake 生成的可执行文件名是否为 `echo-server`。
 
-```
-./echo-server
-```
-
-或者将 CMake 中的目标名改成 `echo_server`。
-
-### 2. API 文档路径找不到
-
-当前推荐路径为：
-
-```
-echo-server/API_DOC.md
-```
-
-不要再写成：
-
-```
-echo-server/docs/API_DOC.md
-```
-
-除非你真的把文件移动到了 `docs/` 目录下。
-
-### 3. 数据库连接失败
+### 2. 数据库连接失败
 
 确认MySQL服务已启动，并检查连接配置：
 - Host: `127.0.0.1`
@@ -286,12 +230,12 @@ echo-server/docs/API_DOC.md
 mysql -h 127.0.0.1 -P 3306 -u echo_user -p echo_app
 ```
 
----
+### 3. AI服务启动失败
 
-## License
-
-MIT License
-
+确保已下载模型文件到正确目录：
+```bash
+ls -la echo-ai/models/qwen2.5-1.5b/
+```
 
 ---
 
@@ -300,8 +244,6 @@ MIT License
 本项目采用 [MIT License](LICENSE) 开源协议
 
 ---
-
-
 
 ## 🙏 致谢
 
@@ -312,9 +254,10 @@ MIT License
 
 ---
 
-
 <div align="center">
 
 ⭐ 如果这个项目对你有帮助，请给我们一个Star！
+
+Made with ❤️ by Moment Team
 
 </div>
