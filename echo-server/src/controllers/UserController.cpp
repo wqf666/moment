@@ -64,6 +64,118 @@ Json::Value rowToUserJson(const drogon::orm::Row& row) {
 void registerUserRoutes() {
     using namespace drogon;
 
+    // 获取用户主页信息（包含用户资料、统计数据和帖子列表）
+    app().registerHandler(
+        "/api/users/home",
+        [](const HttpRequestPtr& req, std::function<void(const HttpResponsePtr&)>&& callback) {
+            int64_t userId = 0;
+            std::string errorMessage;
+
+            if (!parsePositiveInt64(req->getParameter("user_id"), userId)) {
+                callback(jsonResp(15003, "Invalid user id"));
+                return;
+            }
+
+            int page = 1;
+            int pageSize = 20;
+
+            try {
+                auto pageParam = req->getParameter("page");
+                auto pageSizeParam = req->getParameter("page_size");
+
+                if (!pageParam.empty()) {
+                    page = std::max(1, std::stoi(pageParam));
+                }
+
+                if (!pageSizeParam.empty()) {
+                    pageSize = std::min(50, std::max(1, std::stoi(pageSizeParam)));
+                }
+            } catch (...) {
+                page = 1;
+                pageSize = 20;
+            }
+
+            int offset = (page - 1) * pageSize;
+
+            try {
+                // 获取用户信息
+                auto userRows = appctx::db->execSqlSync(
+                    "SELECT id, username, nickname, avatar_url, bio, cover_image_url, created_at "
+                    "FROM users WHERE id = ?",
+                    userId
+                );
+
+                if (userRows.empty()) {
+                    callback(jsonResp(15001, "User not found"));
+                    return;
+                }
+
+                const auto& userRow = userRows[0];
+                Json::Value user;
+                user["user_id"] = static_cast<Json::Int64>(userRow["id"].as<int64_t>());
+                user["username"] = userRow["username"].as<std::string>();
+                user["nickname"] = userRow["nickname"].isNull() ? "" : userRow["nickname"].as<std::string>();
+                user["avatar_url"] = userRow["avatar_url"].isNull() ? "" : userRow["avatar_url"].as<std::string>();
+                user["bio"] = userRow["bio"].isNull() ? "" : userRow["bio"].as<std::string>();
+                user["cover_image_url"] = userRow["cover_image_url"].isNull() ? "" : userRow["cover_image_url"].as<std::string>();
+                user["created_at"] = userRow["created_at"].isNull() ? "" : userRow["created_at"].as<std::string>();
+
+                // 获取统计数据
+                auto statsRows = appctx::db->execSqlSync(
+                    "SELECT "
+                    "(SELECT COUNT(*) FROM posts WHERE user_id = ?) AS post_count, "
+                    "(SELECT COUNT(*) FROM posts WHERE user_id = ? AND image_url != '') AS media_count, "
+                    "(SELECT COUNT(*) FROM user_follows WHERE following_id = ?) AS follower_count, "
+                    "(SELECT COUNT(*) FROM user_follows WHERE follower_id = ?) AS following_count",
+                    userId, userId, userId, userId
+                );
+
+                Json::Value stats;
+                stats["post_count"] = statsRows[0]["post_count"].as<int>();
+                stats["media_count"] = statsRows[0]["media_count"].as<int>();
+                stats["follower_count"] = statsRows[0]["follower_count"].as<int>();
+                stats["following_count"] = statsRows[0]["following_count"].as<int>();
+
+                // 获取用户帖子列表
+                auto postRows = appctx::db->execSqlSync(
+                    "SELECT p.id, p.user_id, p.content, p.image_url AS media_url, "
+                    "p.created_at, p.updated_at, u.username "
+                    "FROM posts p "
+                    "LEFT JOIN users u ON p.user_id = u.id "
+                    "WHERE p.user_id = ? "
+                    "ORDER BY p.created_at DESC "
+                    "LIMIT ? OFFSET ?",
+                    userId, pageSize, offset
+                );
+
+                Json::Value posts(Json::arrayValue);
+                for (const auto& row : postRows) {
+                    Json::Value item;
+                    item["id"] = static_cast<Json::Int64>(row["id"].as<int64_t>());
+                    item["user_id"] = static_cast<Json::Int64>(row["user_id"].as<int64_t>());
+                    item["username"] = row["username"].isNull() ? "" : row["username"].as<std::string>();
+                    item["content"] = row["content"].isNull() ? "" : row["content"].as<std::string>();
+                    item["media_url"] = row["media_url"].isNull() ? "" : row["media_url"].as<std::string>();
+                    item["image_url"] = item["media_url"]; // 兼容旧字段
+                    item["created_at"] = row["created_at"].isNull() ? "" : row["created_at"].as<std::string>();
+                    item["updated_at"] = row["updated_at"].isNull() ? "" : row["updated_at"].as<std::string>();
+                    posts.append(item);
+                }
+
+                Json::Value data;
+                data["user"] = user;
+                data["stats"] = stats;
+                data["posts"] = posts;
+
+                callback(jsonResp(0, "success", data));
+            } catch (const drogon::orm::DrogonDbException& e) {
+                std::cerr << "get user home db error: " << e.base().what() << std::endl;
+                callback(jsonResp(50001, "Database error"));
+            }
+        },
+        {Get}
+    );
+
     // 获取当前用户信息
     app().registerHandler(
         "/api/users/me",

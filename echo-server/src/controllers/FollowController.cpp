@@ -122,6 +122,16 @@ void registerFollowRoutes() {
                 return;
             }
 
+            // 支持查询指定用户的粉丝，默认查询当前用户
+            int64_t targetUserId = userId;
+            auto targetUserParam = req->getParameter("user_id");
+            if (!targetUserParam.empty()) {
+                if (!parsePositiveInt64(targetUserParam, targetUserId)) {
+                    callback(jsonResp(16002, "Invalid user_id"));
+                    return;
+                }
+            }
+
             int page = 1;
             int pageSize = 20;
 
@@ -151,7 +161,7 @@ void registerFollowRoutes() {
                     "WHERE uf.following_id = ? "
                     "ORDER BY uf.created_at DESC "
                     "LIMIT ? OFFSET ?",
-                    userId,
+                    targetUserId,
                     pageSize,
                     offset
                 );
@@ -185,7 +195,7 @@ void registerFollowRoutes() {
                 Json::Value data;
                 data["page"] = page;
                 data["page_size"] = pageSize;
-                data["list"] = list;
+                data["followers"] = list; // 统一使用 followers 字段
 
                 callback(jsonResp(0, "success", data));
             } catch (const drogon::orm::DrogonDbException& e) {
@@ -206,6 +216,16 @@ void registerFollowRoutes() {
             if (!getUserIdFromRequest(req, userId, errorMessage)) {
                 callback(jsonResp(16000, errorMessage));
                 return;
+            }
+
+            // 支持查询指定用户的关注，默认查询当前用户
+            int64_t targetUserId = userId;
+            auto targetUserParam = req->getParameter("user_id");
+            if (!targetUserParam.empty()) {
+                if (!parsePositiveInt64(targetUserParam, targetUserId)) {
+                    callback(jsonResp(16002, "Invalid user_id"));
+                    return;
+                }
             }
 
             int page = 1;
@@ -237,7 +257,7 @@ void registerFollowRoutes() {
                     "WHERE uf.follower_id = ? "
                     "ORDER BY uf.created_at DESC "
                     "LIMIT ? OFFSET ?",
-                    userId,
+                    targetUserId,
                     pageSize,
                     offset
                 );
@@ -271,7 +291,7 @@ void registerFollowRoutes() {
                 Json::Value data;
                 data["page"] = page;
                 data["page_size"] = pageSize;
-                data["list"] = list;
+                data["following"] = list; // 统一使用 following 字段
 
                 callback(jsonResp(0, "success", data));
             } catch (const drogon::orm::DrogonDbException& e) {

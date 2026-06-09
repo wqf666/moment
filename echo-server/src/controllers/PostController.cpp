@@ -36,11 +36,14 @@ Json::Value rowToPostJson(const drogon::orm::Row& row) {
         item["content"] = row["content"].as<std::string>();
     }
 
+    // 统一使用 image_url，同时返回 media_url 以兼容旧前端
+    std::string imageUrl = "";
     if (!row["media_url"].isNull()) {
-        item["media_url"] = row["media_url"].as<std::string>();
-    } else {
-        item["media_url"] = "";
+        imageUrl = row["media_url"].as<std::string>();
     }
+    
+    item["image_url"] = imageUrl;
+    item["media_url"] = imageUrl; // 兼容旧字段，后续版本可删除
 
     if (!row["created_at"].isNull()) {
         item["created_at"] = row["created_at"].as<std::string>();
@@ -77,19 +80,23 @@ void registerPostRoutes() {
             }
 
             std::string content = (*json).get("content", "").asString();
-            std::string mediaUrl = (*json).get("media_url", "").asString();
+            // 优先使用 image_url，兼容旧的 media_url
+            std::string imageUrl = (*json).get("image_url", "").asString();
+            if (imageUrl.empty()) {
+                imageUrl = (*json).get("media_url", "").asString();
+            }
 
-            if (content.empty() && mediaUrl.empty()) {
-                callback(jsonResp(12002, "content or media_url is required"));
+            if (content.empty() && imageUrl.empty()) {
+                callback(jsonResp(12002, "content or image_url is required"));
                 return;
             }
 
             try {
                 auto result = appctx::db->execSqlSync(
-                    "INSERT INTO posts(user_id, content, media_url) VALUES(?, ?, ?)",
+                    "INSERT INTO posts(user_id, content, image_url) VALUES(?, ?, ?)",
                     userId,
                     content,
-                    mediaUrl
+                    imageUrl
                 );
 
                 uint64_t postId = result.insertId();
@@ -98,7 +105,8 @@ void registerPostRoutes() {
                 data["id"] = static_cast<Json::Int64>(postId);
                 data["user_id"] = static_cast<Json::Int64>(userId);
                 data["content"] = content;
-                data["media_url"] = mediaUrl;
+                data["image_url"] = imageUrl;
+                data["media_url"] = imageUrl; // 兼容旧字段
 
                 callback(jsonResp(0, "Post created", data));
             } catch (const drogon::orm::DrogonDbException& e) {
@@ -135,7 +143,7 @@ void registerPostRoutes() {
 
             try {
                 auto rows = appctx::db->execSqlSync(
-                    "SELECT p.id, p.user_id, p.content, p.media_url, "
+                    "SELECT p.id, p.user_id, p.content, p.image_url AS media_url, "
                     "p.created_at, p.updated_at, u.username "
                     "FROM posts p "
                     "LEFT JOIN users u ON p.user_id = u.id "
@@ -178,23 +186,63 @@ void registerPostRoutes() {
             }
 
             try {
-                auto rows = appctx::db->execSqlSync(
-                    "SELECT p.id, p.user_id, p.content, p.media_url, "
-                    "p.created_at, p.updated_at, u.username "
+                // 获取帖子详情
+                auto postRows = appctx::db->execSqlSync(
+                    "SELECT p.id, p.user_id, p.content, p.image_url AS media_url, "
+                    "p.created_at, p.updated_at, u.username, u.avatar_url, "
+                    "COUNT(DISTINCT pl.id) AS like_count, "
+                    "COUNT(DISTINCT c.id) AS comment_count "
                     "FROM posts p "
                     "LEFT JOIN users u ON p.user_id = u.id "
-                    "WHERE p.id = ?",
+                    "LEFT JOIN post_likes pl ON p.id = pl.post_id "
+                    "LEFT JOIN comments c ON p.id = c.post_id "
+                    "WHERE p.id = ? "
+                    "GROUP BY p.id",
                     postId
                 );
 
-                if (rows.empty()) {
+                if (postRows.empty()) {
                     callback(jsonResp(12004, "Post not found"));
                     return;
                 }
 
-                callback(jsonResp(0, "success", rowToPostJson(rows[0])));
+                const auto& postRow = postRows[0];
+                Json::Value post = rowToPostJson(postRow);
+                post["like_count"] = postRow["like_count"].as<int>();
+                post["comment_count"] = postRow["comment_count"].as<int>();
+                post["avatar_url"] = postRow["avatar_url"].isNull() ? "" : postRow["avatar_url"].as<std::string>();
+
+                // 获取评论列表（带用户信息）
+                auto commentRows = appctx::db->execSqlSync(
+                    "SELECT c.id, c.post_id, c.user_id, c.content, c.created_at, "
+                    "u.username, u.avatar_url "
+                    "FROM comments c "
+                    "LEFT JOIN users u ON c.user_id = u.id "
+                    "WHERE c.post_id = ? "
+                    "ORDER BY c.created_at ASC",
+                    postId
+                );
+
+                Json::Value comments(Json::arrayValue);
+                for (const auto& row : commentRows) {
+                    Json::Value comment;
+                    comment["id"] = static_cast<Json::Int64>(row["id"].as<int64_t>());
+                    comment["post_id"] = static_cast<Json::Int64>(row["post_id"].as<int64_t>());
+                    comment["user_id"] = static_cast<Json::Int64>(row["user_id"].as<int64_t>());
+                    comment["username"] = row["username"].isNull() ? "" : row["username"].as<std::string>();
+                    comment["avatar_url"] = row["avatar_url"].isNull() ? "" : row["avatar_url"].as<std::string>();
+                    comment["content"] = row["content"].as<std::string>();
+                    comment["created_at"] = row["created_at"].isNull() ? "" : row["created_at"].as<std::string>();
+                    comments.append(comment);
+                }
+
+                Json::Value data;
+                data["post"] = post;
+                data["comments"] = comments;
+
+                callback(jsonResp(0, "success", data));
             } catch (const drogon::orm::DrogonDbException& e) {
-                std::cerr << "get post db error: " << e.base().what() << std::endl;
+                std::cerr << "get post detail db error: " << e.base().what() << std::endl;
                 callback(jsonResp(50001, "Database error"));
             }
         },
@@ -227,18 +275,22 @@ void registerPostRoutes() {
             }
 
             std::string content = (*json).get("content", "").asString();
-            std::string mediaUrl = (*json).get("media_url", "").asString();
+            // 优先使用 image_url，兼容旧的 media_url
+            std::string imageUrl = (*json).get("image_url", "").asString();
+            if (imageUrl.empty()) {
+                imageUrl = (*json).get("media_url", "").asString();
+            }
 
-            if (content.empty() && mediaUrl.empty()) {
-                callback(jsonResp(12002, "content or media_url is required"));
+            if (content.empty() && imageUrl.empty()) {
+                callback(jsonResp(12002, "content or image_url is required"));
                 return;
             }
 
             try {
                 auto result = appctx::db->execSqlSync(
-                    "UPDATE posts SET content = ?, media_url = ? WHERE id = ? AND user_id = ?",
+                    "UPDATE posts SET content = ?, image_url = ? WHERE id = ? AND user_id = ?",
                     content,
-                    mediaUrl,
+                    imageUrl,
                     postId,
                     userId
                 );
@@ -246,7 +298,8 @@ void registerPostRoutes() {
                 Json::Value data;
                 data["id"] = static_cast<Json::Int64>(postId);
                 data["content"] = content;
-                data["media_url"] = mediaUrl;
+                data["image_url"] = imageUrl;
+                data["media_url"] = imageUrl; // 兼容旧字段
 
                 callback(jsonResp(0, "Post updated", data));
             } catch (const drogon::orm::DrogonDbException& e) {
@@ -467,7 +520,7 @@ void registerPostRoutes() {
 
             try {
                 auto rows = appctx::db->execSqlSync(
-                    "SELECT p.id, p.user_id, p.content, p.media_url, "
+                    "SELECT p.id, p.user_id, p.content, p.image_url AS media_url, "
                     "p.created_at, p.updated_at, u.username, "
                     "COUNT(DISTINCT pl.id) AS like_count, "
                     "COUNT(DISTINCT c.id) AS comment_count "
@@ -542,7 +595,7 @@ void registerPostRoutes() {
 
             try {
                 auto rows = appctx::db->execSqlSync(
-                    "SELECT p.id, p.user_id, p.content, p.media_url, "
+                    "SELECT p.id, p.user_id, p.content, p.image_url AS media_url, "
                     "p.created_at, p.updated_at, u.username, "
                     "COUNT(DISTINCT pl.id) AS like_count, "
                     "COUNT(DISTINCT c.id) AS comment_count "

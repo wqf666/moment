@@ -68,12 +68,39 @@ void registerAiRoutes() {
                     );
 
                     conversationId = static_cast<int64_t>(result.insertId());
+                } else {
+                    // 验证会话所有权
+                    auto ownerRows = appctx::db->execSqlSync(
+                        "SELECT id FROM ai_conversations WHERE id = ? AND user_id = ?",
+                        conversationId,
+                        userId
+                    );
+
+                    if (ownerRows.empty()) {
+                        callback(jsonResp(13007, "Conversation not found"));
+                        return;
+                    }
                 }
 
                 appctx::db->execSqlSync(
-                    "INSERT INTO ai_messages(conversation_id, role, content) VALUES(?, 'user', ?)",
+                    "INSERT INTO ai_messages(conversation_id, role, content, user_id) VALUES(?, 'user', ?, ?)",
                     conversationId,
-                    message
+                    message,
+                    userId
+                );
+
+                // 更新会话时间
+                appctx::db->execSqlSync(
+                    "UPDATE ai_conversations SET updated_at = NOW() WHERE id = ?",
+                    conversationId
+                );
+
+                // 读取最近的历史消息（最多20条，避免上下文过长）
+                auto historyRows = appctx::db->execSqlSync(
+                    "SELECT role, content FROM ai_messages "
+                    "WHERE conversation_id = ? "
+                    "ORDER BY id DESC LIMIT 20",
+                    conversationId
                 );
 
                 Json::Value aiReq;
@@ -81,11 +108,27 @@ void registerAiRoutes() {
 
                 Json::Value messages(Json::arrayValue);
 
+                // 系统提示词
                 Json::Value systemMsg;
                 systemMsg["role"] = "system";
                 systemMsg["content"] = "你是一个校园论坛 AI 助手，请用简洁、友好、实用的方式回答用户问题。";
                 messages.append(systemMsg);
 
+                // 按时间顺序添加历史消息（需要反转）
+                std::vector<Json::Value> historyMessages;
+                for (const auto& row : historyRows) {
+                    Json::Value msg;
+                    msg["role"] = row["role"].as<std::string>();
+                    msg["content"] = row["content"].as<std::string>();
+                    historyMessages.push_back(msg);
+                }
+
+                // 反转消息顺序，使其按时间正序排列
+                for (auto it = historyMessages.rbegin(); it != historyMessages.rend(); ++it) {
+                    messages.append(*it);
+                }
+
+                // 添加当前用户消息
                 Json::Value userMsg;
                 userMsg["role"] = "user";
                 userMsg["content"] = message;
@@ -101,7 +144,7 @@ void registerAiRoutes() {
 
                 appctx::aiClient->sendRequest(
                     aiHttpReq,
-                    [callback, conversationId](ReqResult result, const HttpResponsePtr& aiResp) {
+                    [callback, conversationId, userId](ReqResult result, const HttpResponsePtr& aiResp) {
                         if (result != ReqResult::Ok || !aiResp) {
                             callback(jsonResp(13004, "AI service unavailable"));
                             return;
@@ -137,9 +180,10 @@ void registerAiRoutes() {
 
                         try {
                             appctx::db->execSqlSync(
-                                "INSERT INTO ai_messages(conversation_id, role, content) VALUES(?, 'assistant', ?)",
+                                "INSERT INTO ai_messages(conversation_id, role, content, user_id) VALUES(?, 'assistant', ?, ?)",
                                 conversationId,
-                                reply
+                                reply,
+                                userId
                             );
                         } catch (const drogon::orm::DrogonDbException& e) {
                             std::cerr << "save ai reply db error: " << e.base().what() << std::endl;
@@ -279,6 +323,57 @@ void registerAiRoutes() {
             }
         },
         {Get}
+    );
+
+    // 删除AI会话
+    app().registerHandler(
+        "/api/ai/conversations/{1}",
+        [](const HttpRequestPtr& req, std::function<void(const HttpResponsePtr&)>&& callback, const std::string& conversationIdText) {
+            int64_t userId = 0;
+            std::string errorMessage;
+
+            if (!getUserIdFromRequest(req, userId, errorMessage)) {
+                callback(jsonResp(13000, errorMessage));
+                return;
+            }
+
+            int64_t conversationId = 0;
+
+            if (!parsePositiveInt64(conversationIdText, conversationId)) {
+                callback(jsonResp(13006, "Invalid conversation_id"));
+                return;
+            }
+
+            try {
+                // 验证会话所有权
+                auto ownerRows = appctx::db->execSqlSync(
+                    "SELECT id FROM ai_conversations WHERE id = ? AND user_id = ?",
+                    conversationId,
+                    userId
+                );
+
+                if (ownerRows.empty()) {
+                    callback(jsonResp(13007, "Conversation not found"));
+                    return;
+                }
+
+                // 删除会话（级联删除消息）
+                appctx::db->execSqlSync(
+                    "DELETE FROM ai_conversations WHERE id = ? AND user_id = ?",
+                    conversationId,
+                    userId
+                );
+
+                Json::Value data;
+                data["conversation_id"] = static_cast<Json::Int64>(conversationId);
+
+                callback(jsonResp(0, "Conversation deleted", data));
+            } catch (const drogon::orm::DrogonDbException& e) {
+                std::cerr << "delete conversation db error: " << e.base().what() << std::endl;
+                callback(jsonResp(50001, "Database error"));
+            }
+        },
+        {Delete}
     );
 }
 

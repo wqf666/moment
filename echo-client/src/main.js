@@ -1080,6 +1080,35 @@ async function loadAiMessages(conversationId) {
     'records'
   ])
 }
+
+async function deleteAiConversation(conversationId) {
+  if (!conversationId) return
+
+  try {
+    const result = await request(`/api/ai/conversations/${conversationId}`, {
+      method: 'DELETE'
+    })
+
+    if (result.code !== 0) {
+      alert(result.message || '删除失败')
+      return
+    }
+
+    // 如果删除的是当前会话，清空状态
+    if (String(state.aiConversationId) === String(conversationId)) {
+      state.aiConversationId = 0
+      state.aiMessages = []
+    }
+
+    // 刷新会话列表
+    await refreshAiConversations()
+    renderAiChat()
+  } catch (error) {
+    console.error('删除会话失败:', error)
+    alert('删除失败，请重试')
+  }
+}
+
 function renderAiMessage(message) {
   const role = message?.role || message?.sender || 'assistant'
   const content = message?.content || message?.message || message?.text || ''
@@ -1115,13 +1144,13 @@ function renderAiChat() {
           const isActive = String(conversationId) === activeConversationId
 
           return `
-            <button
-              class="ai-conversation-item ${isActive ? 'active' : ''}"
-              data-conversation-id="${escapeHtml(conversationId)}"
-            >
-              <span>${escapeHtml(item.title || 'AI Chat')}</span>
-              <small>${escapeHtml(item.updated_at || item.created_at || '')}</small>
-            </button>
+            <div class="ai-conversation-item ${isActive ? 'active' : ''}" data-conversation-id="${escapeHtml(conversationId)}">
+              <button class="ai-conversation-btn" data-conversation-id="${escapeHtml(conversationId)}">
+                <span>${escapeHtml(item.title || 'AI Chat')}</span>
+                <small>${escapeHtml(item.updated_at || item.created_at || '')}</small>
+              </button>
+              <button class="ai-delete-btn" data-conversation-id="${escapeHtml(conversationId)}" title="删除会话">️</button>
+            </div>
           `
         })
         .join('')
@@ -1143,10 +1172,7 @@ function renderAiChat() {
   contentEl.innerHTML = `
     <div class="ai-page">
       <div class="ai-sidebar">
-        <div class="ai-sidebar-header">
-          <h2>AI 会话</h2>
-          <button id="new-ai-chat-btn" class="secondary-btn">✨ 新会话</button>
-        </div>
+        <button id="new-ai-chat-btn" class="new-session-btn">✨ 新建会话</button>
 
         <div class="ai-conversation-list">
           ${conversationHtml}
@@ -1221,6 +1247,7 @@ function scrollAiToBottom() {
   const box = $('#ai-message-list')
   if (box) box.scrollTop = box.scrollHeight
 }
+
 async function sendAiMessageStream() {
   const input = $('#ai-input')
   const btn = $('#send-ai-message-btn')
@@ -1247,82 +1274,28 @@ async function sendAiMessageStream() {
   renderAiChat()
 
   try {
-    const response = await fetch('/api/ai/chat/stream', {
+    // 使用普通接口而非流式接口
+    const result = await request('/api/ai/chat', {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${state.token}`
-      },
       body: JSON.stringify({
         conversation_id: state.aiConversationId || 0,
         message
       })
     })
 
-    if (!response.ok) {
-      throw new Error(`HTTP error! status: ${response.status}`)
+    if (result.code !== 0) {
+      throw new Error(result.message || 'AI回复失败')
     }
 
-    const reader = response.body.getReader()
-    const decoder = new TextDecoder()
-    let buffer = ''
-    let done = false
+    // 更新AI回复内容
+    state.aiMessages[assistantIndex].content = result.data.reply || '抱歉，AI暂时没有生成有效回复。'
 
-    while (!done) {
-      const { value, done: readerDone } = await reader.read()
-      done = readerDone
-
-      if (!value) continue
-
-      buffer += decoder.decode(value, { stream: true })
-
-      const lines = buffer.split('\n')
-      buffer = lines.pop() || ''
-
-      for (const line of lines) {
-        if (!line.startsWith('data: ')) continue
-
-        const payload = line.replace(/^data: /, '').trim()
-
-        if (payload === '[DONE]') {
-          done = true
-          break
-        }
-
-        try {
-          const json = JSON.parse(payload)
-
-          const contentDelta =
-            json.choices?.[0]?.delta?.content ||
-            json.content ||
-            json.delta ||
-            ''
-
-          if (contentDelta) {
-            state.aiMessages[assistantIndex].content += contentDelta
-
-            const messageList = $('#ai-message-list')
-            if (messageList) {
-              messageList.innerHTML = state.aiMessages.map(renderAiMessage).join('')
-              scrollAiToBottom()
-            }
-          }
-
-          const conversationId =
-            json.conversation_id ||
-            json.id ||
-            json.data?.conversation_id ||
-            0
-
-          if (conversationId) {
-            state.aiConversationId = conversationId
-          }
-        } catch {
-          // 忽略非 JSON 数据
-        }
-      }
+    // 更新对话ID
+    if (result.data.conversation_id) {
+      state.aiConversationId = result.data.conversation_id
     }
 
+    // 刷新会话列表（更新时间和标题）
     await refreshAiConversations()
     renderAiChat()
   } catch (error) {
@@ -1337,7 +1310,6 @@ async function sendAiMessageStream() {
     }
   }
 }
-
 
 async function navigateToUser(userId) {
   if (!userId) return
@@ -1409,10 +1381,19 @@ contentEl.addEventListener('click', async (event) => {
     return renderAiChat()
   }
 
-  const aiConversationBtn = target.closest('.ai-conversation-item')
+  const aiConversationBtn = target.closest('.ai-conversation-btn')
   if (aiConversationBtn) {
     await loadAiMessages(aiConversationBtn.dataset.conversationId)
     return renderAiChat()
+  }
+
+  const aiDeleteBtn = target.closest('.ai-delete-btn')
+  if (aiDeleteBtn) {
+    const conversationId = aiDeleteBtn.dataset.conversationId
+    if (confirm('确定要删除这个会话吗？')) {
+      await deleteAiConversation(conversationId)
+    }
+    return
   }
 
   if (target.closest('#send-ai-message-btn')) {
